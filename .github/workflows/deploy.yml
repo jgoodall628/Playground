@@ -10,17 +10,8 @@ jobs:
         contains(toJSON(github.event.commits.*.added), 'backend/')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Deploy to Heroku
-        uses: akhileshns/heroku-deploy@v3.14.15
-        with:
-          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: ${{ secrets.HEROKU_APP_NAME }}
-          heroku_email: ${{ secrets.HEROKU_EMAIL }}
-          appdir: backend
+      - name: Trigger Render Deploy
+        run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
 
   update-frontend:
     if: contains(toJSON(github.event.commits.*.modified), 'frontend/') ||
