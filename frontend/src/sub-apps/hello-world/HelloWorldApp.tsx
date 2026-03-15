@@ -5,7 +5,7 @@ export default function HelloWorldApp() {
   return (
     <View style={styles.container}>
       <Text style={styles.emoji}>👋</Text>
-      <Text style={styles.title}>Hello, Jeff!</Text>
+      <Text style={styles.title}>Hello Katie, it works!</Text>
       <Text style={styles.subtitle}>Your first sub-app is running.</Text>
     </View>
   );
