@@ -32,7 +32,7 @@ export default function HomeScreen({ navigation }: Props) {
       const apps = await fetchSubApps();
       setSubApps(apps);
     } catch (e) {
-      setError('Could not load apps. Is the API running?');
+      setError('Could not load apps. Is the API running? Test');
     } finally {
       setLoading(false);
     }
