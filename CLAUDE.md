@@ -57,17 +57,23 @@ bundle config build.psych --with-libyaml-dir=$(brew --prefix libyaml)
 
 ## Shell Commands
 
-Run each command separately — do not chain commands with `&&`, `;`, or `|` unless piping is essential to the operation. Use separate tool calls for each command.
+- Run each command separately — do not chain with `&&`, `;`, or `|` unless piping is essential.
+- All `ruby`, `rails`, `bundle`, `node`, `npm`, and `npx` commands must be prefixed with `mise exec --` to use the correct runtime versions. The Bash tool does not inherit mise shell activation.
+- When a command must run from a subdirectory, use a single `cd` call first in one tool call, then the command in a separate tool call.
 
 ```sh
-# Run backend tests (none yet)
-cd backend
-bin/rails test
+# Change to backend directory (first tool call)
+cd /Users/jeffreygoodall/development/Playground/backend
 
-# Run frontend type check
-cd frontend
-npx tsc --noEmit
+# Run backend tests (separate tool call)
+mise exec -- bin/rails test
 
-# Verify API
+# Change to frontend directory (first tool call)
+cd /Users/jeffreygoodall/development/Playground/frontend
+
+# Run frontend type check (separate tool call)
+mise exec -- npx tsc --noEmit
+
+# Verify API (no mise needed for curl)
 curl http://localhost:3000/api/v1/sub_apps
 ```
