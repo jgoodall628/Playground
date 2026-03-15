@@ -55,14 +55,18 @@ bundle config build.psych --with-libyaml-dir=$(brew --prefix libyaml)
 - CI/CD workflow: `.github/workflows/deploy.yml`.
 - Required secrets: `RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`.
 
-## Commands
+## Shell Commands
+
+Run each command separately — do not chain commands with `&&`, `;`, or `|` unless piping is essential to the operation. Use separate tool calls for each command.
 
 ```sh
 # Run backend tests (none yet)
-cd backend && bin/rails test
+cd backend
+bin/rails test
 
 # Run frontend type check
-cd frontend && npx tsc --noEmit
+cd frontend
+npx tsc --noEmit
 
 # Verify API
 curl http://localhost:3000/api/v1/sub_apps
