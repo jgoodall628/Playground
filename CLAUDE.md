@@ -46,7 +46,7 @@ bundle config build.psych --with-libyaml-dir=$(brew --prefix libyaml)
 - **Sub-app registry pattern**: `src/sub-apps/registry.ts` maps slugs → React components.
 - To add a new sub-app: create component in `src/sub-apps/<slug>/`, register in `registry.ts`.
 - API client in `src/api/client.ts` — uses `__DEV__` to toggle localhost vs production URL.
-- Production API URL is a placeholder (`your-app.herokuapp.com`) — update after Render deploy.
+- Production API URL: `https://playground-api-dyu9.onrender.com/api/v1`.
 
 ## Deployment
 
