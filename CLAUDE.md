@@ -55,6 +55,23 @@ bundle config build.psych --with-libyaml-dir=$(brew --prefix libyaml)
 - CI/CD workflow: `.github/workflows/deploy.yml`.
 - Required secrets: `RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`.
 
+## Preview on Device
+
+The app uses Expo SDK 54 for compatibility with Expo Go. To preview on a physical device:
+
+1. Install **Expo Go** from the App Store (or Google Play).
+2. Sign in with the Expo account (`jgoodall628`).
+3. Push an EAS update from the `frontend/` directory:
+
+```sh
+cd frontend
+mise exec -- npx eas update --branch preview --message "description" --environment preview --non-interactive
+```
+
+4. Open Expo Go on your phone — the update appears under your projects.
+
+This also works when running Claude Code remotely (e.g., cloud VM) since EAS updates are uploaded to Expo's servers — no local network required.
+
 ## Shell Commands
 
 - Run each command separately — do not chain with `&&`, `;`, or `|` unless piping is essential.

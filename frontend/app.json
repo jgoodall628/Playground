@@ -27,15 +27,18 @@
       "favicon": "./assets/favicon.png"
     },
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "sdkVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/YOUR_PROJECT_ID"
+      "url": "https://u.expo.dev/dcb0311f-e9da-4a7f-9d0b-8f829f3670a6"
     },
     "extra": {
       "eas": {
-        "projectId": "YOUR_PROJECT_ID"
+        "projectId": "dcb0311f-e9da-4a7f-9d0b-8f829f3670a6"
       }
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
