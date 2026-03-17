@@ -18,8 +18,8 @@ export default function SessionList() {
     try {
       const data = await getSessions();
       setSessions(data);
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', (e as Error).message);
     } finally {
       setLoading(false);
     }

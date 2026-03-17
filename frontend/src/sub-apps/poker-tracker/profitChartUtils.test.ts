@@ -1,4 +1,4 @@
-import { filterCutoff, buildChartData, Filter } from './profitChartUtils';
+import { filterCutoff, buildChartData } from './profitChartUtils';
 
 // Fixed reference date for all tests: 2026-03-17
 const NOW = new Date('2026-03-17T00:00:00Z');

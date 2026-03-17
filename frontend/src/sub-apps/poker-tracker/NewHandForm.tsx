@@ -277,7 +277,7 @@ function BoardDisplay({ boardCards, currentStreet }: {
 
   if (allCards.length === 0) return null;
 
-  const suitColor = (s: string) => (['♥', '♦'].includes(s) ? '#dc2626' : '#fff');
+  const _suitColor = (s: string) => (['♥', '♦'].includes(s) ? '#dc2626' : '#fff');
 
   const renderCard = (card: string, i: number) => {
     const rank = card.slice(0, -1);
@@ -426,6 +426,7 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
 
         {/* Action type */}
         <Text style={styles.label}>Action</Text>
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <Chips options={form.availableActions} value={form.pendingActionType} onChange={(v) => form.setPendingActionType(v as any)} />
 
         {/* Bet sizing */}

@@ -21,6 +21,7 @@ export default function SubAppScreen({ route }: Props) {
     );
   }
 
+  // eslint-disable-next-line react-hooks/static-components -- Component is a registry lookup, not created during render
   return <Component slug={slug} />;
 }
 

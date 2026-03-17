@@ -23,8 +23,8 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     try {
       const data = await getSession(sessionId);
       setSession(data);
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', (e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
         <Text style={styles.sectionTitle}>Hands ({hands.length})</Text>
 
         {hands.length === 0 && (
-          <Text style={styles.empty}>No hands yet. Tap "Add Hand" to log one.</Text>
+          <Text style={styles.empty}>No hands yet. Tap &quot;Add Hand&quot; to log one.</Text>
         )}
 
         {hands.map((h) => (

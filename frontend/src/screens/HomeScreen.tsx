@@ -31,7 +31,7 @@ export default function HomeScreen({ navigation }: Props) {
       setError(null);
       const apps = await fetchSubApps();
       setSubApps(apps);
-    } catch (e) {
+    } catch (_e) {
       setError('Could not load apps. Is the API running? Test');
     } finally {
       setLoading(false);
@@ -53,6 +53,7 @@ export default function HomeScreen({ navigation }: Props) {
       >
         <View style={[styles.iconContainer, { backgroundColor: item.color + '20' }]}>
           <Ionicons
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             name={(item.icon as any) || 'cube-outline'}
             size={28}
             color={item.color}

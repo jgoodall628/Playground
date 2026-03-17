@@ -261,8 +261,8 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
         })),
       });
       onSaved();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', (e as Error).message);
     } finally {
       setSaving(false);
     }
