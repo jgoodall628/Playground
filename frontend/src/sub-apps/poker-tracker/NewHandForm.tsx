@@ -1,45 +1,30 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator,
+  ScrollView, ActivityIndicator,
 } from 'react-native';
-import { createHand } from './api';
+import {
+  POSITIONS, STREETS, ACTION_TYPES,
+  fmt,
+  useHandForm,
+  type Street,
+} from './useHandForm';
 
-const POSITIONS = ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
-const PREFLOP_ORDER  = ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
-const POSTFLOP_ORDER = ['SB', 'BB', 'UTG', 'LJ', 'HJ', 'CO', 'BTN'];
+const STREET_COLORS_MAP: Record<Street, string> = {
+  preflop: '#7C3AED',
+  flop: '#0ea5e9',
+  turn: '#f59e0b',
+  river: '#16a34a',
+};
+
 const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 const SUITS = ['♠', '♥', '♦', '♣'];
 const SUIT_CHARS = ['s', 'h', 'd', 'c'];
-const STREETS = ['preflop', 'flop', 'turn', 'river'] as const;
-
-// 1bb = 100 internal units (same integer arithmetic as before, just denominated in BBs)
-const BIG_BLIND = 100;
-const SMALL_BLIND = 50;
-
-type Street = typeof STREETS[number];
-type WizardStep = 'setup' | 'actions' | 'result';
-
-interface ActionInput {
-  street: string;
-  actor: string;
-  villain_position: string;
-  action_type: string;
-  amount: string;
-}
 
 interface Props {
   sessionId: number;
   onSaved: () => void;
   onCancel: () => void;
-}
-
-function fmt(units: number) {
-  return `${(units / 100).toFixed(1)}bb`;
-}
-
-function actionOrderFor(street: Street): string[] {
-  return street === 'preflop' ? PREFLOP_ORDER : POSTFLOP_ORDER;
 }
 
 // ─── CardPicker ────────────────────────────────────────────────────────────────
@@ -63,20 +48,12 @@ function CardPicker({ card1, card2, onChange }: {
   const selectSuit = (suitIdx: number) => {
     if (!pendingRank) return;
     const newCard = pendingRank + SUIT_CHARS[suitIdx];
-    if (activeSlot === 0) {
-      onChange(newCard, card2);
-      setActiveSlot(1);
-    } else {
-      onChange(card1, newCard);
-    }
+    if (activeSlot === 0) { onChange(newCard, card2); setActiveSlot(1); }
+    else { onChange(card1, newCard); }
     setPendingRank(null);
   };
 
-  const activateSlot = (slot: 0 | 1) => {
-    setActiveSlot(slot);
-    setPendingRank(null);
-  };
-
+  const activateSlot = (slot: 0 | 1) => { setActiveSlot(slot); setPendingRank(null); };
   const c1 = displayCard(card1);
   const c2 = displayCard(card2);
 
@@ -84,49 +61,26 @@ function CardPicker({ card1, card2, onChange }: {
     <View style={cpStyles.container}>
       <Text style={cpStyles.label}>Hero Cards</Text>
       <View style={cpStyles.slots}>
-        <TouchableOpacity
-          style={[cpStyles.slot, activeSlot === 0 && cpStyles.slotActive]}
-          onPress={() => activateSlot(0)}
-        >
-          {c1 ? (
-            <Text style={[cpStyles.cardText, { color: c1.color }]}>{c1.rank}{c1.suit}</Text>
-          ) : (
-            <Text style={cpStyles.slotEmpty}>{activeSlot === 0 ? '?' : '–'}</Text>
-          )}
+        <TouchableOpacity style={[cpStyles.slot, activeSlot === 0 && cpStyles.slotActive]} onPress={() => activateSlot(0)}>
+          {c1 ? <Text style={[cpStyles.cardText, { color: c1.color }]}>{c1.rank}{c1.suit}</Text>
+               : <Text style={cpStyles.slotEmpty}>{activeSlot === 0 ? '?' : '–'}</Text>}
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[cpStyles.slot, activeSlot === 1 && cpStyles.slotActive]}
-          onPress={() => activateSlot(1)}
-        >
-          {c2 ? (
-            <Text style={[cpStyles.cardText, { color: c2.color }]}>{c2.rank}{c2.suit}</Text>
-          ) : (
-            <Text style={cpStyles.slotEmpty}>{activeSlot === 1 ? '?' : '–'}</Text>
-          )}
+        <TouchableOpacity style={[cpStyles.slot, activeSlot === 1 && cpStyles.slotActive]} onPress={() => activateSlot(1)}>
+          {c2 ? <Text style={[cpStyles.cardText, { color: c2.color }]}>{c2.rank}{c2.suit}</Text>
+               : <Text style={cpStyles.slotEmpty}>{activeSlot === 1 ? '?' : '–'}</Text>}
         </TouchableOpacity>
       </View>
       <View style={cpStyles.rankGrid}>
         {RANKS.map((r) => (
-          <TouchableOpacity
-            key={r}
-            style={[cpStyles.rankBtn, pendingRank === r && cpStyles.rankBtnActive]}
-            onPress={() => setPendingRank(r)}
-          >
+          <TouchableOpacity key={r} style={[cpStyles.rankBtn, pendingRank === r && cpStyles.rankBtnActive]} onPress={() => setPendingRank(r)}>
             <Text style={[cpStyles.rankText, pendingRank === r && cpStyles.rankTextActive]}>{r}</Text>
           </TouchableOpacity>
         ))}
       </View>
       <View style={cpStyles.suitRow}>
         {SUITS.map((s, i) => (
-          <TouchableOpacity
-            key={s}
-            style={[cpStyles.suitBtn, !pendingRank && cpStyles.suitBtnDisabled]}
-            onPress={() => selectSuit(i)}
-            disabled={!pendingRank}
-          >
-            <Text style={[cpStyles.suitText, { color: suitColor(s) }, !pendingRank && cpStyles.suitTextDisabled]}>
-              {s}
-            </Text>
+          <TouchableOpacity key={s} style={[cpStyles.suitBtn, !pendingRank && cpStyles.suitBtnDisabled]} onPress={() => selectSuit(i)} disabled={!pendingRank}>
+            <Text style={[cpStyles.suitText, { color: suitColor(s) }, !pendingRank && cpStyles.suitTextDisabled]}>{s}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -138,29 +92,17 @@ const cpStyles = StyleSheet.create({
   container: { marginBottom: 16 },
   label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8 },
   slots: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  slot: {
-    width: 60, height: 80, borderRadius: 8, borderWidth: 2,
-    borderColor: '#e5e7eb', backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  slotActive: { borderColor: '#7C3AED', borderWidth: 2 },
+  slot: { width: 60, height: 80, borderRadius: 8, borderWidth: 2, borderColor: '#e5e7eb', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  slotActive: { borderColor: '#7C3AED' },
   slotEmpty: { fontSize: 24, color: '#d1d5db' },
   cardText: { fontSize: 22, fontWeight: '700' },
   rankGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  rankBtn: {
-    width: 40, height: 40, borderRadius: 8, borderWidth: 1,
-    borderColor: '#d1d5db', backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  rankBtn: { width: 40, height: 40, borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   rankBtnActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
   rankText: { fontSize: 15, fontWeight: '600', color: '#374151' },
   rankTextActive: { color: '#fff' },
   suitRow: { flexDirection: 'row', gap: 10 },
-  suitBtn: {
-    width: 52, height: 48, borderRadius: 8, borderWidth: 1,
-    borderColor: '#d1d5db', backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  suitBtn: { width: 52, height: 48, borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   suitBtnDisabled: { backgroundColor: '#f9fafb', borderColor: '#e5e7eb' },
   suitText: { fontSize: 22, fontWeight: '600' },
   suitTextDisabled: { opacity: 0.35 },
@@ -169,18 +111,16 @@ const cpStyles = StyleSheet.create({
 // ─── BetSizingButtons ──────────────────────────────────────────────────────────
 
 function BetSizingButtons({ potCents, remainingStackCents, lastBetCents, selected, onSelect }: {
-  potCents: number;
-  remainingStackCents: number;
-  lastBetCents: number;
-  selected: number | null;
-  onSelect: (cents: number) => void;
+  potCents: number; remainingStackCents: number; lastBetCents: number;
+  selected: number | null; onSelect: (cents: number) => void;
 }) {
-  // Min bet: 1bb (BIG_BLIND units) if no current bet, otherwise 2x the current bet
+  // Min bet: 1bb if no current bet, otherwise 2× the current bet
+  const BIG_BLIND = 100;
   const minBet = lastBetCents > 0 ? lastBetCents * 2 : BIG_BLIND;
   const sizings = [
-    { label: 'Min', cents: minBet },
-    { label: '33%', cents: Math.round(potCents * 0.33) },
-    { label: '80%', cents: Math.round(potCents * 0.80) },
+    { label: 'Min',  cents: minBet },
+    { label: '33%',  cents: Math.round(potCents * 0.33) },
+    { label: '80%',  cents: Math.round(potCents * 0.80) },
     { label: '150%', cents: Math.round(potCents * 1.50) },
     { label: 'All In', cents: remainingStackCents },
   ];
@@ -190,11 +130,7 @@ function BetSizingButtons({ potCents, remainingStackCents, lastBetCents, selecte
       {sizings.map(({ label, cents }) => {
         const isActive = selected === cents;
         return (
-          <TouchableOpacity
-            key={label}
-            style={[bsStyles.btn, isActive && bsStyles.btnActive]}
-            onPress={() => onSelect(cents)}
-          >
+          <TouchableOpacity key={label} style={[bsStyles.btn, isActive && bsStyles.btnActive]} onPress={() => onSelect(cents)}>
             <Text style={[bsStyles.btnLabel, isActive && bsStyles.btnLabelActive]}>{label}</Text>
             <Text style={[bsStyles.btnAmount, isActive && bsStyles.btnAmountActive]}>{fmt(cents)}</Text>
           </TouchableOpacity>
@@ -206,11 +142,7 @@ function BetSizingButtons({ potCents, remainingStackCents, lastBetCents, selecte
 
 const bsStyles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 6, marginBottom: 10 },
-  btn: {
-    flex: 1, paddingVertical: 8, borderRadius: 8,
-    borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff',
-    alignItems: 'center',
-  },
+  btn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff', alignItems: 'center' },
   btnActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
   btnLabel: { fontSize: 11, fontWeight: '700', color: '#374151' },
   btnLabelActive: { color: '#fff' },
@@ -218,7 +150,7 @@ const bsStyles = StyleSheet.create({
   btnAmountActive: { color: '#ede9fe' },
 });
 
-// ─── Chip picker ───────────────────────────────────────────────────────────────
+// ─── Chips ─────────────────────────────────────────────────────────────────────
 
 function Chips({ options, value, onChange, size = 'md' }: {
   options: string[]; value: string; onChange: (v: string) => void; size?: 'sm' | 'md';
@@ -226,14 +158,8 @@ function Chips({ options, value, onChange, size = 'md' }: {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
       {options.map((opt) => (
-        <TouchableOpacity
-          key={opt}
-          style={[chipStyles.chip, value === opt && chipStyles.active, size === 'sm' && chipStyles.sm]}
-          onPress={() => onChange(opt)}
-        >
-          <Text style={[chipStyles.text, value === opt && chipStyles.textActive, size === 'sm' && chipStyles.smText]}>
-            {opt}
-          </Text>
+        <TouchableOpacity key={opt} style={[chipStyles.chip, value === opt && chipStyles.active, size === 'sm' && chipStyles.sm]} onPress={() => onChange(opt)}>
+          <Text style={[chipStyles.text, value === opt && chipStyles.textActive, size === 'sm' && chipStyles.smText]}>{opt}</Text>
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -241,10 +167,7 @@ function Chips({ options, value, onChange, size = 'md' }: {
 }
 
 const chipStyles = StyleSheet.create({
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: '#d1d5db', marginRight: 8, backgroundColor: '#fff',
-  },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#d1d5db', marginRight: 8, backgroundColor: '#fff' },
   active: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
   text: { fontSize: 14, color: '#374151', fontWeight: '500' },
   textActive: { color: '#fff', fontWeight: '700' },
@@ -252,222 +175,15 @@ const chipStyles = StyleSheet.create({
   smText: { fontSize: 12 },
 });
 
-// ─── Street colors ─────────────────────────────────────────────────────────────
-
-const STREET_COLORS: Record<Street, string> = {
-  preflop: '#7C3AED',
-  flop: '#0ea5e9',
-  turn: '#f59e0b',
-  river: '#16a34a',
-};
-
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
-  const [step, setStep] = useState<WizardStep>('setup');
-
-  // Setup
-  const [card1, setCard1] = useState('');
-  const [card2, setCard2] = useState('');
-  const [heroPosition, setHeroPosition] = useState('');
-  const [stackStr, setStackStr] = useState('100');
-  const [startingPotStr, setStartingPotStr] = useState('');
-
-  // Actions
-  const [currentStreet, setCurrentStreet] = useState<Street>('preflop');
-  const [potCents, setPotCents] = useState(0);
-  const [heroInvestedCents, setHeroInvestedCents] = useState(0);
-  const [lastBetCents, setLastBetCents] = useState(0);
-  const [actions, setActions] = useState<ActionInput[]>([]);
-  const [currentActorIdx, setCurrentActorIdx] = useState(0);
-  const [foldedPositions, setFoldedPositions] = useState<string[]>([]);
-  const [pendingActionType, setPendingActionType] = useState('');
-  const [pendingAmountCents, setPendingAmountCents] = useState<number | null>(null);
-  const [pendingAmountStr, setPendingAmountStr] = useState('');
-  const [editingPot, setEditingPot] = useState(false);
-  const [potEditStr, setPotEditStr] = useState('');
-
-  // Result
-  const [resultStr, setResultStr] = useState('');
-  const [resultPositive, setResultPositive] = useState(true);
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const stackCents = stackStr ? Math.round(parseFloat(stackStr) * 100) : 0;
-  const remainingStack = Math.max(0, stackCents - heroInvestedCents);
-  const needsAmount = ['bet', 'raise', 'call'].includes(pendingActionType);
-
-  // Derived actor info
-  const actorOrder = actionOrderFor(currentStreet);
-  const currentActor = actorOrder[currentActorIdx] ?? '';
-  const isHeroTurn = currentActor === heroPosition;
-
-  // Skip label: BB preflop with no raise gets a "check" option
-  const bbPreflopOption =
-    currentStreet === 'preflop' &&
-    currentActor === 'BB' &&
-    lastBetCents <= BIG_BLIND;
-  const skipAutoAction = (lastBetCents === 0 || bbPreflopOption) ? 'check' : 'fold';
-
-  // ── Setup → Actions ──
-  const startHand = () => {
-    const initPot = startingPotStr
-      ? Math.round(parseFloat(startingPotStr) * 100)
-      : BIG_BLIND + SMALL_BLIND; // default 1.5bb
-    setPotCents(initPot);
-    // Preflop: BB has already bet 1bb
-    setLastBetCents(BIG_BLIND);
-    setCurrentActorIdx(0);
-    setFoldedPositions([]);
-    setStep('actions');
-  };
-
-  // ── Advance to next non-folded actor ──
-  const advanceActor = (folded: string[]) => {
-    const order = actionOrderFor(currentStreet);
-    let next = (currentActorIdx + 1) % order.length;
-    let tries = 0;
-    while (folded.includes(order[next]) && tries < order.length) {
-      next = (next + 1) % order.length;
-      tries++;
-    }
-    setCurrentActorIdx(next);
-  };
-
-  // ── Add pending action ──
-  const addPendingAction = () => {
-    if (!pendingActionType) {
-      Alert.alert('Select an action type');
-      return;
-    }
-    if (needsAmount && pendingAmountCents === null) {
-      Alert.alert('Enter a bet amount');
-      return;
-    }
-
-    const amountCents = needsAmount ? pendingAmountCents! : null;
-    const amountStr = amountCents !== null ? (amountCents / 100).toFixed(2) : '';
-
-    const newAction: ActionInput = {
-      street: currentStreet,
-      actor: isHeroTurn ? 'hero' : 'villain',
-      villain_position: isHeroTurn ? '' : currentActor,
-      action_type: pendingActionType,
-      amount: amountStr,
-    };
-
-    setActions((prev) => [...prev, newAction]);
-
-    const newFolded = pendingActionType === 'fold'
-      ? [...foldedPositions, currentActor]
-      : foldedPositions;
-    if (pendingActionType === 'fold') setFoldedPositions(newFolded);
-
-    if (amountCents !== null) {
-      setPotCents((p) => p + amountCents);
-      if (isHeroTurn) setHeroInvestedCents((h) => h + amountCents);
-      if (['bet', 'raise'].includes(pendingActionType)) setLastBetCents(amountCents);
-    }
-
-    setPendingActionType('');
-    setPendingAmountCents(null);
-    setPendingAmountStr('');
-    advanceActor(newFolded);
-  };
-
-  // ── Skip action (auto fold or check) ──
-  const skipAction = () => {
-    const newAction: ActionInput = {
-      street: currentStreet,
-      actor: isHeroTurn ? 'hero' : 'villain',
-      villain_position: isHeroTurn ? '' : currentActor,
-      action_type: skipAutoAction,
-      amount: '',
-    };
-
-    setActions((prev) => [...prev, newAction]);
-
-    const newFolded = skipAutoAction === 'fold'
-      ? [...foldedPositions, currentActor]
-      : foldedPositions;
-    if (skipAutoAction === 'fold') setFoldedPositions(newFolded);
-
-    setPendingActionType('');
-    setPendingAmountCents(null);
-    setPendingAmountStr('');
-    advanceActor(newFolded);
-  };
-
-  // ── Advance street ──
-  const advanceStreet = () => {
-    const idx = STREETS.indexOf(currentStreet);
-    if (idx >= STREETS.length - 1) {
-      setStep('result');
-      return;
-    }
-    setCurrentStreet(STREETS[idx + 1]);
-    setCurrentActorIdx(0);
-    setPendingActionType('');
-    setPendingAmountCents(null);
-    setPendingAmountStr('');
-    setLastBetCents(0);
-  };
-
-  // ── Handle manual amount input ──
-  const handleAmountStr = (val: string) => {
-    setPendingAmountStr(val);
-    const n = parseFloat(val);
-    setPendingAmountCents(!isNaN(n) ? Math.round(n * 100) : null);
-  };
-
-  const handleSizingSelect = (cents: number) => {
-    setPendingAmountCents(cents);
-    setPendingAmountStr((cents / 100).toFixed(2));
-  };
-
-  // ── Pot edit ──
-  const startPotEdit = () => {
-    setPotEditStr((potCents / 100).toFixed(2));
-    setEditingPot(true);
-  };
-  const confirmPotEdit = () => {
-    const n = parseFloat(potEditStr);
-    if (!isNaN(n)) setPotCents(Math.round(n * 100));
-    setEditingPot(false);
-  };
-
-  // ── Submit ──
-  const submit = async () => {
-    setSaving(true);
-    try {
-      const rawResult = parseFloat(resultStr) * (resultPositive ? 1 : -1);
-      await createHand(sessionId, {
-        hero_cards: [card1, card2].filter(Boolean).join(' ') || undefined,
-        hero_position: heroPosition || undefined,
-        effective_stack_cents: stackStr ? Math.round(parseFloat(stackStr) * 100) : undefined,
-        pot_result_cents: resultStr ? Math.round(rawResult * 100) : undefined,
-        notes: notes || undefined,
-        poker_actions_attributes: actions.map((a, i) => ({
-          street: a.street,
-          actor: a.actor,
-          villain_position: a.actor === 'villain' ? a.villain_position : undefined,
-          action_type: a.action_type,
-          amount_cents: a.amount ? Math.round(parseFloat(a.amount) * 100) : undefined,
-          sequence: i + 1,
-        })),
-      });
-      onSaved();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  const form = useHandForm(sessionId, onSaved);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // STEP: SETUP
   // ─────────────────────────────────────────────────────────────────────────────
-  if (step === 'setup') {
+  if (form.step === 'setup') {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.pageHeader}>
@@ -477,38 +193,18 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
           </TouchableOpacity>
         </View>
 
-        <CardPicker
-          card1={card1}
-          card2={card2}
-          onChange={(c1, c2) => { setCard1(c1); setCard2(c2); }}
-        />
+        <CardPicker card1={form.card1} card2={form.card2} onChange={(c1, c2) => { form.setCard1(c1); form.setCard2(c2); }} />
 
         <Text style={styles.label}>Hero Position</Text>
-        <Chips options={POSITIONS} value={heroPosition} onChange={setHeroPosition} />
+        <Chips options={POSITIONS} value={form.heroPosition} onChange={form.setHeroPosition} />
 
         <Text style={styles.label}>Effective Stack (bb)</Text>
-        <TextInput
-          style={styles.input}
-          value={stackStr}
-          onChangeText={setStackStr}
-          placeholder="100"
-          keyboardType="decimal-pad"
-        />
+        <TextInput style={styles.input} value={form.stackStr} onChangeText={form.setStackStr} placeholder="100" keyboardType="decimal-pad" />
 
         <Text style={styles.label}>Starting Pot (bb) — optional</Text>
-        <TextInput
-          style={styles.input}
-          value={startingPotStr}
-          onChangeText={setStartingPotStr}
-          placeholder="1.5 (default: SB+BB)"
-          keyboardType="decimal-pad"
-        />
+        <TextInput style={styles.input} value={form.startingPotStr} onChangeText={form.setStartingPotStr} placeholder="1.5 (default: SB+BB)" keyboardType="decimal-pad" />
 
-        <TouchableOpacity
-          style={[styles.primaryBtn, !heroPosition && styles.primaryBtnDisabled]}
-          onPress={startHand}
-          disabled={!heroPosition}
-        >
+        <TouchableOpacity style={[styles.primaryBtn, !form.heroPosition && styles.primaryBtnDisabled]} onPress={form.startHand} disabled={!form.heroPosition}>
           <Text style={styles.primaryBtnText}>Start Hand →</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -518,57 +214,46 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
   // ─────────────────────────────────────────────────────────────────────────────
   // STEP: ACTIONS
   // ─────────────────────────────────────────────────────────────────────────────
-  if (step === 'actions') {
-    const streetColor = STREET_COLORS[currentStreet];
-    const streetIdx = STREETS.indexOf(currentStreet);
+  if (form.step === 'actions') {
+    const streetColor = STREET_COLORS_MAP[form.currentStreet];
+    const streetIdx   = STREETS.indexOf(form.currentStreet);
     const isLastStreet = streetIdx === STREETS.length - 1;
 
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Street header */}
         <View style={[styles.streetHeader, { backgroundColor: streetColor }]}>
-          <Text style={styles.streetLabel}>{currentStreet.toUpperCase()}</Text>
-          {editingPot ? (
+          <Text style={styles.streetLabel}>{form.currentStreet.toUpperCase()}</Text>
+          {form.editingPot ? (
             <View style={styles.potEditRow}>
               <Text style={styles.potHeaderText}>Pot: </Text>
               <TextInput
                 style={styles.potInput}
-                value={potEditStr}
-                onChangeText={setPotEditStr}
-                onBlur={confirmPotEdit}
-                onSubmitEditing={confirmPotEdit}
+                value={form.potEditStr}
+                onChangeText={form.setPotEditStr}
+                onBlur={form.confirmPotEdit}
+                onSubmitEditing={form.confirmPotEdit}
                 keyboardType="decimal-pad"
                 autoFocus
               />
               <Text style={styles.potHeaderText}>bb</Text>
             </View>
           ) : (
-            <TouchableOpacity onPress={startPotEdit}>
-              <Text style={styles.potHeaderText}>Pot: {fmt(potCents)} ✎</Text>
+            <TouchableOpacity onPress={form.startPotEdit}>
+              <Text style={styles.potHeaderText}>Pot: {fmt(form.potCents)} ✎</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Position order indicator */}
         <View style={styles.positionRow}>
-          {actorOrder.map((pos) => {
-            const isCurrent = pos === currentActor;
-            const isFolded = foldedPositions.includes(pos);
-            const isHero = pos === heroPosition;
+          {form.actorOrder.map((pos) => {
+            const isCurrent = pos === form.currentActor;
+            const isFolded  = form.foldedPositions.includes(pos);
+            const isHero    = pos === form.heroPosition;
             return (
-              <View
-                key={pos}
-                style={[
-                  styles.posChip,
-                  isCurrent && { backgroundColor: streetColor, borderColor: streetColor },
-                  isFolded && styles.posChipFolded,
-                ]}
-              >
-                <Text style={[
-                  styles.posChipText,
-                  isCurrent && styles.posChipTextActive,
-                  isFolded && styles.posChipTextFolded,
-                ]}>
+              <View key={pos} style={[styles.posChip, isCurrent && { backgroundColor: streetColor, borderColor: streetColor }, isFolded && styles.posChipFolded]}>
+                <Text style={[styles.posChipText, isCurrent && styles.posChipTextActive, isFolded && styles.posChipTextFolded]}>
                   {pos}{isHero ? '*' : ''}
                 </Text>
               </View>
@@ -577,74 +262,55 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
         </View>
 
         {/* Current actor banner */}
-        <View style={[styles.actorBanner, isHeroTurn && { borderColor: streetColor }]}>
-          <Text style={[styles.actorBannerText, isHeroTurn && { color: streetColor }]}>
-            {isHeroTurn ? `You (${currentActor}) to act` : `${currentActor} to act`}
+        <View style={[styles.actorBanner, form.isHeroTurn && { borderColor: streetColor }]}>
+          <Text style={[styles.actorBannerText, form.isHeroTurn && { color: streetColor }]}>
+            {form.isHeroTurn ? `You (${form.currentActor}) to act` : `${form.currentActor} to act`}
           </Text>
         </View>
 
         {/* Action type */}
         <Text style={styles.label}>Action</Text>
-        <Chips
-          options={['fold', 'check', 'call', 'bet', 'raise']}
-          value={pendingActionType}
-          onChange={setPendingActionType}
-        />
+        <Chips options={[...ACTION_TYPES]} value={form.pendingActionType} onChange={(v) => form.setPendingActionType(v as any)} />
 
         {/* Bet sizing */}
-        {needsAmount && (
+        {form.needsAmount && (
           <View style={styles.sizingBlock}>
             <BetSizingButtons
-              potCents={potCents}
-              remainingStackCents={remainingStack}
-              lastBetCents={lastBetCents}
-              selected={pendingAmountCents}
-              onSelect={handleSizingSelect}
+              potCents={form.potCents}
+              remainingStackCents={form.remainingStack}
+              lastBetCents={form.lastBetCents}
+              selected={form.pendingAmountCents}
+              onSelect={form.handleSizingSelect}
             />
-            <TextInput
-              style={styles.input}
-              value={pendingAmountStr}
-              onChangeText={handleAmountStr}
-              placeholder="or enter amount (bb)"
-              keyboardType="decimal-pad"
-            />
+            <TextInput style={styles.input} value={form.pendingAmountStr} onChangeText={form.handleAmountStr} placeholder="or enter amount (bb)" keyboardType="decimal-pad" />
           </View>
         )}
 
-        {/* Action buttons row */}
+        {/* Action buttons */}
         <View style={styles.actionBtnRow}>
-          <TouchableOpacity
-            style={[styles.skipBtn]}
-            onPress={skipAction}
-          >
-            <Text style={styles.skipBtnText}>
-              Skip ({skipAutoAction})
-            </Text>
+          <TouchableOpacity style={styles.skipBtn} onPress={form.skipAction}>
+            <Text style={styles.skipBtnText}>Skip ({form.skipAutoAction})</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.primaryBtn, styles.addActionBtn, !pendingActionType && styles.primaryBtnDisabled]}
-            onPress={addPendingAction}
-            disabled={!pendingActionType}
-          >
+          <TouchableOpacity style={[styles.primaryBtn, styles.addActionBtn, !form.pendingActionType && styles.primaryBtnDisabled]} onPress={form.addPendingAction} disabled={!form.pendingActionType}>
             <Text style={styles.primaryBtnText}>+ Add Action</Text>
           </TouchableOpacity>
         </View>
 
         {/* Actions log */}
-        {actions.length > 0 && (
+        {form.actions.length > 0 && (
           <View style={styles.logBlock}>
             <Text style={styles.logTitle}>Actions this hand</Text>
-            {actions.map((a, i) => {
-              const streetColor2 = STREET_COLORS[a.street as Street] ?? '#7C3AED';
+            {form.actions.map((a, i) => {
+              const dot = STREET_COLORS_MAP[a.street as Street] ?? '#7C3AED';
               return (
                 <View key={i} style={styles.logRow}>
-                  <View style={[styles.logStreetDot, { backgroundColor: streetColor2 }]} />
+                  <View style={[styles.logStreetDot, { backgroundColor: dot }]} />
                   <Text style={styles.logText}>
-                    <Text style={styles.logActor}>{a.actor === 'hero' ? `Hero (${heroPosition})` : a.villain_position || '?'}</Text>
+                    <Text style={styles.logActor}>{a.actor === 'hero' ? `Hero (${form.heroPosition})` : a.villain_position || '?'}</Text>
                     {' '}{a.action_type}{a.amount ? ` ${parseFloat(a.amount).toFixed(1)}bb` : ''}
                   </Text>
-                  {i === actions.length - 1 && (
-                    <TouchableOpacity onPress={() => setActions((prev) => prev.slice(0, -1))}>
+                  {i === form.actions.length - 1 && (
+                    <TouchableOpacity onPress={form.undoLastAction}>
                       <Text style={styles.undoText}>undo</Text>
                     </TouchableOpacity>
                   )}
@@ -654,12 +320,12 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
           </View>
         )}
 
-        {/* Footer nav */}
+        {/* Footer */}
         <View style={styles.footerRow}>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep('result')}>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => form.setStep('result')}>
             <Text style={styles.secondaryBtnText}>End Hand ✓</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryBtn} onPress={advanceStreet}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={form.advanceStreet}>
             <Text style={styles.primaryBtnText}>
               {isLastStreet ? 'To Result →' : `${STREETS[streetIdx + 1].charAt(0).toUpperCase() + STREETS[streetIdx + 1].slice(1)} →`}
             </Text>
@@ -678,66 +344,35 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
 
       <View style={styles.summaryCard}>
         <Text style={styles.summaryTitle}>Summary</Text>
-        {(card1 || card2) && (
-          <Text style={styles.summaryRow}>
-            Cards: <Text style={styles.summaryVal}>{[card1, card2].filter(Boolean).join(' ')}</Text>
-          </Text>
+        {(form.card1 || form.card2) && (
+          <Text style={styles.summaryRow}>Cards: <Text style={styles.summaryVal}>{[form.card1, form.card2].filter(Boolean).join(' ')}</Text></Text>
         )}
-        <Text style={styles.summaryRow}>
-          Position: <Text style={styles.summaryVal}>{heroPosition || '—'}</Text>
-        </Text>
-        {stackStr && (
-          <Text style={styles.summaryRow}>
-            Stack: <Text style={styles.summaryVal}>{stackStr}bb</Text>
-          </Text>
-        )}
-        <Text style={styles.summaryRow}>
-          Actions logged: <Text style={styles.summaryVal}>{actions.length}</Text>
-        </Text>
-        <Text style={styles.summaryRow}>
-          Final pot: <Text style={styles.summaryVal}>{fmt(potCents)}</Text>
-        </Text>
+        <Text style={styles.summaryRow}>Position: <Text style={styles.summaryVal}>{form.heroPosition || '—'}</Text></Text>
+        {form.stackStr && <Text style={styles.summaryRow}>Stack: <Text style={styles.summaryVal}>{form.stackStr}bb</Text></Text>}
+        <Text style={styles.summaryRow}>Actions logged: <Text style={styles.summaryVal}>{form.actions.length}</Text></Text>
+        <Text style={styles.summaryRow}>Final pot: <Text style={styles.summaryVal}>{fmt(form.potCents)}</Text></Text>
       </View>
 
       <Text style={styles.label}>Result (bb)</Text>
       <View style={styles.resultRow}>
-        <TouchableOpacity
-          style={[styles.resultToggle, resultPositive && styles.resultToggleWon]}
-          onPress={() => setResultPositive(true)}
-        >
-          <Text style={[styles.resultToggleText, resultPositive && styles.resultToggleTextActive]}>Won</Text>
+        <TouchableOpacity style={[styles.resultToggle, form.resultPositive && styles.resultToggleWon]} onPress={() => form.setResultPositive(true)}>
+          <Text style={[styles.resultToggleText, form.resultPositive && styles.resultToggleTextActive]}>Won</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.resultToggle, !resultPositive && styles.resultToggleLost]}
-          onPress={() => setResultPositive(false)}
-        >
-          <Text style={[styles.resultToggleText, !resultPositive && styles.resultToggleTextActive]}>Lost</Text>
+        <TouchableOpacity style={[styles.resultToggle, !form.resultPositive && styles.resultToggleLost]} onPress={() => form.setResultPositive(false)}>
+          <Text style={[styles.resultToggleText, !form.resultPositive && styles.resultToggleTextActive]}>Lost</Text>
         </TouchableOpacity>
-        <TextInput
-          style={[styles.input, styles.resultInput]}
-          value={resultStr}
-          onChangeText={setResultStr}
-          placeholder="50"
-          keyboardType="decimal-pad"
-        />
+        <TextInput style={[styles.input, styles.resultInput]} value={form.resultStr} onChangeText={form.setResultStr} placeholder="50" keyboardType="decimal-pad" />
       </View>
 
       <Text style={styles.label}>Notes</Text>
-      <TextInput
-        style={[styles.input, styles.multiline]}
-        value={notes}
-        onChangeText={setNotes}
-        multiline
-        numberOfLines={3}
-        placeholder="Any reads, mistakes, or interesting spots..."
-      />
+      <TextInput style={[styles.input, styles.multiline]} value={form.notes} onChangeText={form.setNotes} multiline numberOfLines={3} placeholder="Any reads, mistakes, or interesting spots..." />
 
       <View style={styles.footerRow}>
-        <TouchableOpacity style={styles.secondaryBtn} onPress={() => setStep('actions')}>
+        <TouchableOpacity style={styles.secondaryBtn} onPress={() => form.setStep('actions')}>
           <Text style={styles.secondaryBtnText}>← Actions</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.primaryBtn} onPress={submit} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Hand</Text>}
+        <TouchableOpacity style={styles.primaryBtn} onPress={form.submit} disabled={form.saving}>
+          {form.saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Hand</Text>}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -753,75 +388,40 @@ const styles = StyleSheet.create({
   cancelLink: { color: '#7C3AED', fontSize: 15, fontWeight: '600' },
 
   label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
-  input: {
-    backgroundColor: '#fff', borderRadius: 8, padding: 12,
-    fontSize: 15, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 12,
-  },
+  input: { backgroundColor: '#fff', borderRadius: 8, padding: 12, fontSize: 15, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 12 },
   multiline: { height: 80, textAlignVertical: 'top' },
 
-  primaryBtn: {
-    flex: 1, padding: 14, borderRadius: 10,
-    backgroundColor: '#7C3AED', alignItems: 'center', marginBottom: 12,
-  },
+  primaryBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: '#7C3AED', alignItems: 'center', marginBottom: 12 },
   primaryBtnDisabled: { backgroundColor: '#c4b5fd' },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  secondaryBtn: {
-    flex: 1, padding: 14, borderRadius: 10,
-    borderWidth: 1, borderColor: '#7C3AED', alignItems: 'center', marginBottom: 12, marginRight: 10,
-  },
+  secondaryBtn: { flex: 1, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: '#7C3AED', alignItems: 'center', marginBottom: 12, marginRight: 10 },
   secondaryBtnText: { color: '#7C3AED', fontWeight: '600', fontSize: 15 },
 
-  // Street header
-  streetHeader: {
-    borderRadius: 12, padding: 14, marginBottom: 16,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
+  streetHeader: { borderRadius: 12, padding: 14, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   streetLabel: { fontSize: 20, fontWeight: '800', color: '#fff', letterSpacing: 2 },
   potHeaderText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   potEditRow: { flexDirection: 'row', alignItems: 'center' },
-  potInput: {
-    backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 6,
-    paddingHorizontal: 8, paddingVertical: 2, color: '#fff', fontSize: 14, minWidth: 60,
-  },
+  potInput: { backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, color: '#fff', fontSize: 14, minWidth: 60 },
 
-  // Position order row
   positionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  posChip: {
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-    borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff',
-  },
+  posChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff' },
   posChipFolded: { backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' },
   posChipText: { fontSize: 12, fontWeight: '600', color: '#374151' },
   posChipTextActive: { color: '#fff' },
   posChipTextFolded: { color: '#9ca3af', textDecorationLine: 'line-through' },
 
-  // Current actor banner
-  actorBanner: {
-    borderRadius: 10, borderWidth: 2, borderColor: '#d1d5db',
-    paddingVertical: 10, paddingHorizontal: 14, marginBottom: 16,
-    backgroundColor: '#fff', alignItems: 'center',
-  },
+  actorBanner: { borderRadius: 10, borderWidth: 2, borderColor: '#d1d5db', paddingVertical: 10, paddingHorizontal: 14, marginBottom: 16, backgroundColor: '#fff', alignItems: 'center' },
   actorBannerText: { fontSize: 16, fontWeight: '700', color: '#374151' },
 
-  // Action buttons row
   actionBtnRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
-  skipBtn: {
-    flex: 1, padding: 14, borderRadius: 10,
-    borderWidth: 1, borderColor: '#6b7280', backgroundColor: '#f9fafb',
-    alignItems: 'center', marginBottom: 12,
-  },
+  skipBtn: { flex: 1, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: '#6b7280', backgroundColor: '#f9fafb', alignItems: 'center', marginBottom: 12 },
   skipBtnText: { color: '#374151', fontWeight: '600', fontSize: 14 },
   addActionBtn: { marginBottom: 12 },
 
-  // Sizing block
   sizingBlock: { marginBottom: 4 },
 
-  // Actions log
-  logBlock: {
-    backgroundColor: '#fff', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 16,
-  },
+  logBlock: { backgroundColor: '#fff', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 16 },
   logTitle: { fontSize: 12, fontWeight: '700', color: '#9ca3af', marginBottom: 8, textTransform: 'uppercase' },
   logRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   logStreetDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
@@ -829,23 +429,15 @@ const styles = StyleSheet.create({
   logActor: { fontWeight: '700' },
   undoText: { color: '#dc2626', fontSize: 12 },
 
-  // Footer
   footerRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
 
-  // Result
-  summaryCard: {
-    backgroundColor: '#fff', borderRadius: 10, padding: 14,
-    borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 16,
-  },
+  summaryCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 16 },
   summaryTitle: { fontSize: 13, fontWeight: '700', color: '#7C3AED', marginBottom: 8 },
   summaryRow: { fontSize: 13, color: '#6b7280', marginBottom: 4 },
   summaryVal: { color: '#111827', fontWeight: '600' },
 
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  resultToggle: {
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8,
-    borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff',
-  },
+  resultToggle: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff' },
   resultToggleWon: { backgroundColor: '#dcfce7', borderColor: '#16a34a' },
   resultToggleLost: { backgroundColor: '#fee2e2', borderColor: '#dc2626' },
   resultToggleText: { fontSize: 14, fontWeight: '600', color: '#374151' },
