@@ -4,7 +4,7 @@ import {
   ScrollView, ActivityIndicator,
 } from 'react-native';
 import {
-  POSITIONS, STREETS, ACTION_TYPES,
+  POSITIONS, STREETS,
   fmt,
   useHandForm,
   type Street,
@@ -125,9 +125,11 @@ function BetSizingButtons({ potCents, remainingStackCents, lastBetCents, selecte
     { label: 'All In', cents: remainingStackCents },
   ];
 
+  const validSizings = sizings.filter(({ cents }) => cents >= minBet);
+
   return (
     <View style={bsStyles.row}>
-      {sizings.map(({ label, cents }) => {
+      {validSizings.map(({ label, cents }) => {
         const isActive = selected === cents;
         return (
           <TouchableOpacity key={label} style={[bsStyles.btn, isActive && bsStyles.btnActive]} onPress={() => onSelect(cents)}>
@@ -270,7 +272,7 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
 
         {/* Action type */}
         <Text style={styles.label}>Action</Text>
-        <Chips options={[...ACTION_TYPES]} value={form.pendingActionType} onChange={(v) => form.setPendingActionType(v as any)} />
+        <Chips options={form.availableActions} value={form.pendingActionType} onChange={(v) => form.setPendingActionType(v as any)} />
 
         {/* Bet sizing */}
         {form.needsAmount && (

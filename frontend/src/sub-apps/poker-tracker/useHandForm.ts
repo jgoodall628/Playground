@@ -75,12 +75,16 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   const stackCents       = stackStr ? Math.round(parseFloat(stackStr) * 100) : 0;
   const remainingStack   = Math.max(0, stackCents - heroInvestedCents);
   const pendingAmountCents = pendingAmountStr ? Math.round(parseFloat(pendingAmountStr) * 100) : null;
-  const needsAmount      = pendingActionType === 'bet' || pendingActionType === 'raise' || pendingActionType === 'call';
+  const needsAmount      = pendingActionType === 'bet' || pendingActionType === 'raise';
   const actorOrder       = actionOrderFor(currentStreet);
   const currentActor     = actorOrder[currentActorIdx] ?? '';
   const isHeroTurn       = currentActor === heroPosition;
   const bbPreflopOption  = currentStreet === 'preflop' && currentActor === 'BB' && lastBetCents <= BIG_BLIND;
   const skipAutoAction: ActionType = (lastBetCents === 0 || bbPreflopOption) ? 'check' : 'fold';
+  const isFacingBet      = lastBetCents > 0 && !bbPreflopOption;
+  const availableActions: ActionType[] = isFacingBet
+    ? ['fold', 'call', 'raise']
+    : ['fold', 'check', 'bet'];
 
   // ── Advance to next non-folded actor ──
   function advanceActor(folded: string[]) {
@@ -142,8 +146,14 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   // ── Add pending action (with validation) ──
   function addPendingAction() {
     if (!pendingActionType) { Alert.alert('Select an action type'); return; }
-    if (needsAmount && pendingAmountCents === null) { Alert.alert('Enter a bet amount'); return; }
-    recordAction(pendingActionType as ActionType, needsAmount ? pendingAmountCents : null);
+    let amountCents: number | null = null;
+    if (pendingActionType === 'call') {
+      amountCents = lastBetCents;
+    } else if (needsAmount) {
+      if (pendingAmountCents === null) { Alert.alert('Enter a bet amount'); return; }
+      amountCents = pendingAmountCents;
+    }
+    recordAction(pendingActionType as ActionType, amountCents);
     resetPending();
   }
 
@@ -246,6 +256,8 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     currentActor,
     isHeroTurn,
     skipAutoAction,
+    isFacingBet,
+    availableActions,
 
     // Result
     resultStr, setResultStr,
