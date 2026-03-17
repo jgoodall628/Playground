@@ -3,8 +3,9 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert,
 } from 'react-native';
-import { getSession, deleteHand, PokerSession, PokerHandSummary } from './api';
+import { getSession, deleteSession, deleteHand, PokerSession, PokerHandSummary } from './api';
 import { formatMoney, profitColor, formatDuration } from './utils';
+import NewSessionForm from './NewSessionForm';
 import NewHandForm from './NewHandForm';
 import HandDetail from './HandDetail';
 
@@ -16,6 +17,7 @@ interface Props {
 export default function SessionDetail({ sessionId, onBack }: Props) {
   const [session, setSession] = useState<PokerSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showEdit, setShowEdit] = useState(false);
   const [showNewHand, setShowNewHand] = useState(false);
   const [selectedHandId, setSelectedHandId] = useState<number | null>(null);
 
@@ -31,6 +33,16 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   };
 
   useEffect(() => { load(); }, []);
+
+  if (showEdit && session) {
+    return (
+      <NewSessionForm
+        session={session}
+        onSaved={() => { setShowEdit(false); load(); }}
+        onCancel={() => setShowEdit(false)}
+      />
+    );
+  }
 
   if (showNewHand) {
     return (
@@ -57,12 +69,48 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
 
   const hands: PokerHandSummary[] = session.hands || [];
 
+  const handleDeleteSession = () => {
+    Alert.alert('Delete Session', 'Delete this session and all its hands?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          await deleteSession(sessionId);
+          onBack();
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteHand = (handId: number) => {
+    Alert.alert('Delete Hand', 'Delete this hand and all its actions?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          await deleteHand(sessionId, handId);
+          load();
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={onBack} style={styles.back}>
-          <Text style={styles.backText}>← Sessions</Text>
-        </TouchableOpacity>
+        <View style={styles.topRow}>
+          <TouchableOpacity onPress={onBack} style={styles.back}>
+            <Text style={styles.backText}>← Sessions</Text>
+          </TouchableOpacity>
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.editBtn} onPress={() => setShowEdit(true)}>
+              <Text style={styles.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteSession}>
+              <Text style={styles.deleteBtnText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         <View style={styles.header}>
           <Text style={styles.date}>{session.date}</Text>
@@ -98,31 +146,20 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
         )}
 
         {hands.map((h) => (
-          <TouchableOpacity
-            key={h.id}
-            style={styles.handCard}
-            onPress={() => setSelectedHandId(h.id)}
-            onLongPress={() =>
-              Alert.alert('Delete Hand', 'Delete this hand and all its actions?', [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete', style: 'destructive',
-                  onPress: async () => {
-                    await deleteHand(sessionId, h.id);
-                    load();
-                  },
-                },
-              ])
-            }
-          >
-            <Text style={styles.handCards}>{h.hero_cards || '??'}</Text>
-            {h.hero_position && <Text style={styles.handPosition}>{h.hero_position}</Text>}
-            {h.pot_result_cents != null && (
-              <Text style={[styles.handResult, { color: profitColor(h.pot_result_cents) }]}>
-                {formatMoney(h.pot_result_cents)}
-              </Text>
-            )}
-          </TouchableOpacity>
+          <View key={h.id} style={styles.handCard}>
+            <TouchableOpacity style={styles.handInfo} onPress={() => setSelectedHandId(h.id)}>
+              <Text style={styles.handCards}>{h.hero_cards || '??'}</Text>
+              {h.hero_position && <Text style={styles.handPosition}>{h.hero_position}</Text>}
+              {h.pot_result_cents != null && (
+                <Text style={[styles.handResult, { color: profitColor(h.pot_result_cents) }]}>
+                  {formatMoney(h.pot_result_cents)}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.handDelete} onPress={() => handleDeleteHand(h.id)}>
+              <Text style={styles.handDeleteText}>✕</Text>
+            </TouchableOpacity>
+          </View>
         ))}
       </ScrollView>
 
@@ -136,8 +173,20 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f3ff' },
   content: { padding: 20, paddingBottom: 100 },
-  back: { marginBottom: 16 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  back: {},
   backText: { color: '#7C3AED', fontSize: 15, fontWeight: '600' },
+  actions: { flexDirection: 'row', gap: 8 },
+  editBtn: {
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8,
+    borderWidth: 1, borderColor: '#7C3AED',
+  },
+  editBtnText: { color: '#7C3AED', fontSize: 13, fontWeight: '600' },
+  deleteBtn: {
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8,
+    borderWidth: 1, borderColor: '#ef4444',
+  },
+  deleteBtnText: { color: '#ef4444', fontSize: 13, fontWeight: '600' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   date: { fontSize: 22, fontWeight: '700', color: '#111827' },
   stakes: {
@@ -154,8 +203,12 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginTop: 20, marginBottom: 10 },
   empty: { color: '#9ca3af', fontSize: 14, textAlign: 'center', marginTop: 20 },
   handCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#fff', borderRadius: 10, padding: 14, marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#fff', borderRadius: 10, marginBottom: 8,
+    overflow: 'hidden',
+  },
+  handInfo: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14,
   },
   handCards: { flex: 1, fontSize: 16, fontWeight: '600', color: '#111827' },
   handPosition: {
@@ -163,6 +216,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, fontWeight: '600',
   },
   handResult: { fontSize: 14, fontWeight: '700' },
+  handDelete: {
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderLeftWidth: 1, borderLeftColor: '#f3f4f6',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  handDeleteText: { color: '#ef4444', fontSize: 16, fontWeight: '700' },
   fab: {
     position: 'absolute', bottom: 20, left: 20, right: 20,
     backgroundColor: '#7C3AED', borderRadius: 12, padding: 16,

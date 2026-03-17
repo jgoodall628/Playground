@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import SessionList from './SessionList';
 import AllHandsList from './AllHandsList';
 import StatsScreen from './StatsScreen';
@@ -12,20 +13,23 @@ interface Props {
 
 export default function PokerTrackerNavigator({ slug: _ }: Props) {
   const [tab, setTab] = useState<Tab>('sessions');
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Poker Tracker</Text>
-      </View>
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Poker Tracker</Text>
+        </View>
 
-      <View style={styles.content}>
-        {tab === 'sessions' && <SessionList />}
-        {tab === 'hands' && <AllHandsList />}
-        {tab === 'stats' && <StatsScreen />}
-      </View>
+        <View style={styles.content}>
+          {tab === 'sessions' && <SessionList />}
+          {tab === 'hands' && <AllHandsList />}
+          {tab === 'stats' && <StatsScreen />}
+        </View>
+      </SafeAreaView>
 
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { paddingBottom: insets.bottom }]}>
         {(['sessions', 'hands', 'stats'] as Tab[]).map((t) => (
           <TouchableOpacity
             key={t}
@@ -38,12 +42,13 @@ export default function PokerTrackerNavigator({ slug: _ }: Props) {
           </TouchableOpacity>
         ))}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f3ff' },
+  safeArea: { flex: 1 },
   header: {
     paddingHorizontal: 20, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: '#ede9fe', backgroundColor: '#fff',

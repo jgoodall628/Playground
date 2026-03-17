@@ -50,6 +50,11 @@ export const createHand = (sessionId: number, data: Record<string, unknown>) =>
     method: 'POST',
     body: JSON.stringify({ poker_hand: data }),
   });
+export const updateHand = (sessionId: number, handId: number, data: Partial<PokerHand>) =>
+  request<PokerHand>(`/sessions/${sessionId}/hands/${handId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ poker_hand: data }),
+  });
 export const deleteHand = (sessionId: number, handId: number) =>
   request<void>(`/sessions/${sessionId}/hands/${handId}`, { method: 'DELETE' });
 
