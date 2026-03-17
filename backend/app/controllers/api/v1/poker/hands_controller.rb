@@ -27,7 +27,7 @@ module Api
             a.as_json(only: [:id, :street, :actor, :villain_position, :action_type, :amount_cents, :sequence])
           }
           render json: @hand.as_json(
-            only: [:id, :poker_session_id, :hero_cards, :hero_position, :effective_stack_cents, :pot_result_cents, :notes]
+            only: [:id, :poker_session_id, :hero_cards, :hero_position, :effective_stack_cents, :pot_result_cents, :notes, :villain_cards]
           ).merge('actions' => actions)
         end
 
@@ -71,12 +71,13 @@ module Api
         def hand_params
           params.require(:poker_hand).permit(
             :hero_cards, :hero_position, :effective_stack_cents, :pot_result_cents, :notes,
+            villain_cards: {},
             poker_actions_attributes: [:street, :actor, :villain_position, :action_type, :amount_cents, :sequence]
           )
         end
 
         def hand_update_params
-          params.require(:poker_hand).permit(:hero_cards, :hero_position, :effective_stack_cents, :pot_result_cents, :notes)
+          params.require(:poker_hand).permit(:hero_cards, :hero_position, :effective_stack_cents, :pot_result_cents, :notes, villain_cards: {})
         end
       end
     end
