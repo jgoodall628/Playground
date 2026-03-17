@@ -1,8 +1,21 @@
+# == Schema: poker_actions ==
+#
+# id               :integer  not null, primary key
+# poker_hand_id    :integer  not null, FK → poker_hands
+# action_type      :string   not null   (fold/check/call/bet/raise)
+# actor            :string   not null   (hero/villain)
+# amount_cents     :integer
+# sequence         :integer  not null
+# street           :string   not null   (preflop/flop/turn/river)
+# villain_position :string
+# created_at       :datetime not null
+# updated_at       :datetime not null
+#
 class PokerAction < ApplicationRecord
   STREETS = %w[preflop flop turn river].freeze
   ACTORS = %w[hero villain].freeze
   ACTION_TYPES = %w[fold check call bet raise].freeze
-  POSITIONS = %w[BTN CO MP UTG SB BB].freeze
+  POSITIONS = %w[BTN CO MP LJ HJ UTG SB BB].freeze
 
   belongs_to :poker_hand
 

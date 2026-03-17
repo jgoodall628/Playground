@@ -10,7 +10,7 @@ interface Props {
   slug: string;
 }
 
-export default function PokerHome({ slug: _ }: Props) {
+export default function PokerTrackerNavigator({ slug: _ }: Props) {
   const [tab, setTab] = useState<Tab>('sessions');
 
   return (

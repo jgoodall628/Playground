@@ -1,59 +1,25 @@
-const API_BASE = 'https://playground-api-dyu9.onrender.com/api/v1/poker';
+import { API_BASE_URL, API_WRITE_TOKEN } from '../../config';
+import type {
+  PokerSession,
+  PokerHandSummary,
+  PokerHand,
+  PokerStats,
+} from './constants';
+export type {
+  PokerSession,
+  PokerHandSummary,
+  PokerHand,
+  PokerAction,
+  PokerStats,
+} from './constants';
 
-export interface PokerSession {
-  id: number;
-  date: string;
-  buy_in_cents: number;
-  cash_out_cents: number;
-  profit_cents: number;
-  location?: string;
-  game_type?: string;
-  stakes?: string;
-  duration_minutes?: number;
-  hands?: PokerHandSummary[];
-}
-
-export interface PokerHandSummary {
-  id: number;
-  hero_cards?: string;
-  hero_position?: string;
-  pot_result_cents?: number;
-}
-
-export interface PokerHand {
-  id: number;
-  poker_session_id: number;
-  hero_cards?: string;
-  hero_position?: string;
-  effective_stack_cents?: number;
-  pot_result_cents?: number;
-  notes?: string;
-  villain_cards?: Record<string, string>;
-  actions?: PokerAction[];
-  session?: { id: number; date: string; stakes?: string };
-}
-
-export interface PokerAction {
-  id: number;
-  street: string;
-  actor: string;
-  villain_position?: string;
-  action_type: string;
-  amount_cents?: number;
-  sequence: number;
-}
-
-export interface PokerStats {
-  total_profit_cents: number;
-  session_count: number;
-  avg_profit_per_session_cents: number;
-  profit_by_date: { date: string; profit_cents: number }[];
-  win_rate_by_position: Record<string, number>;
-}
+const API_BASE = `${API_BASE_URL}/poker`;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (API_WRITE_TOKEN) headers['Authorization'] = `Bearer ${API_WRITE_TOKEN}`;
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...options,
   });
   if (!response.ok) {

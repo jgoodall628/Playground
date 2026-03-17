@@ -1,3 +1,16 @@
+# == Schema: poker_sessions ==
+#
+# id               :integer   not null, primary key
+# buy_in_cents     :integer   not null
+# cash_out_cents   :integer   not null
+# date             :date      not null
+# duration_minutes :integer
+# game_type        :string
+# location         :string
+# stakes           :string
+# created_at       :datetime  not null
+# updated_at       :datetime  not null
+#
 class PokerSession < ApplicationRecord
   has_many :poker_hands, dependent: :destroy
 
