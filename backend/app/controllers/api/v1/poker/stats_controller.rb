@@ -4,13 +4,13 @@ module Api
       class StatsController < ApplicationController
         def index
           sessions = PokerSession.order(:date)
-          total_profit = sessions.sum { |s| s.profit_cents }
+          total_profit = sessions.sum(&:profit_cents)
           session_count = sessions.count
-          avg_profit = session_count > 0 ? (total_profit.to_f / session_count).round : 0
+          avg_profit = session_count.positive? ? (total_profit.to_f / session_count).round : 0
 
-          profit_by_date = sessions.map { |s|
+          profit_by_date = sessions.map do |s|
             { 'date' => s.date.to_s, 'profit_cents' => s.profit_cents }
-          }
+          end
 
           win_rate_by_position = compute_win_rate_by_position
 
@@ -30,7 +30,7 @@ module Api
           by_position = hands.group_by(&:hero_position)
 
           by_position.transform_values do |hs|
-            won = hs.count { |h| h.pot_result_cents > 0 }
+            won = hs.count { |h| h.pot_result_cents.positive? }
             (won.to_f / hs.size).round(2)
           end
         end

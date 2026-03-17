@@ -3,22 +3,24 @@ module Api
     module Poker
       class ActionsController < ApplicationController
         before_action :set_hand
-        before_action :set_action, only: [:update, :destroy]
+        before_action :set_action, only: %i[update destroy]
 
         def create
           action = @hand.poker_actions.new(action_params)
           if action.save
-            render json: action.as_json(only: [:id, :street, :actor, :villain_position, :action_type, :amount_cents, :sequence]), status: :created
+            render json: action.as_json(only: %i[id street actor villain_position action_type amount_cents sequence]),
+                   status: :created
           else
-            render json: { errors: action.errors.full_messages }, status: :unprocessable_entity
+            render json: { errors: action.errors.full_messages }, status: :unprocessable_content
           end
         end
 
         def update
           if @action.update(action_params)
-            render json: @action.as_json(only: [:id, :street, :actor, :villain_position, :action_type, :amount_cents, :sequence])
+            render json: @action.as_json(only: %i[id street actor villain_position action_type amount_cents
+                                                  sequence])
           else
-            render json: { errors: @action.errors.full_messages }, status: :unprocessable_entity
+            render json: { errors: @action.errors.full_messages }, status: :unprocessable_content
           end
         end
 
@@ -43,7 +45,8 @@ module Api
         end
 
         def action_params
-          params.require(:poker_action).permit(:street, :actor, :villain_position, :action_type, :amount_cents, :sequence)
+          params.expect(poker_action: %i[street actor villain_position action_type amount_cents
+                                         sequence])
         end
       end
     end

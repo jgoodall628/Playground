@@ -23,7 +23,7 @@ class PokerSession < ApplicationRecord
   end
 
   def as_json(options = {})
-    super(options).tap do |hash|
+    super.tap do |hash|
       hash['profit_cents'] = profit_cents
     end
   end

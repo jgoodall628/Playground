@@ -2,22 +2,23 @@ module Api
   module V1
     module Poker
       class SessionsController < ApplicationController
-        before_action :set_session, only: [:show, :update, :destroy]
+        before_action :set_session, only: %i[show update destroy]
 
         def index
           sessions = PokerSession.order(date: :desc)
           render json: sessions.map { |s|
-            s.as_json(only: [:id, :date, :buy_in_cents, :cash_out_cents, :location, :game_type, :stakes, :duration_minutes])
-              .merge('profit_cents' => s.profit_cents)
+            s.as_json(only: %i[id date buy_in_cents cash_out_cents location game_type stakes
+                               duration_minutes])
+            .merge('profit_cents' => s.profit_cents)
           }
         end
 
         def show
-          hands = @poker_session.poker_hands.map { |h|
-            h.as_json(only: [:id, :hero_cards, :hero_position, :pot_result_cents])
-          }
+          hands = @poker_session.poker_hands.map do |h|
+            h.as_json(only: %i[id hero_cards hero_position pot_result_cents])
+          end
           render json: @poker_session.as_json(
-            only: [:id, :date, :buy_in_cents, :cash_out_cents, :location, :game_type, :stakes, :duration_minutes]
+            only: %i[id date buy_in_cents cash_out_cents location game_type stakes duration_minutes]
           ).merge('profit_cents' => @poker_session.profit_cents, 'hands' => hands)
         end
 
@@ -25,20 +26,20 @@ module Api
           session = PokerSession.new(session_params)
           if session.save
             render json: session.as_json(
-              only: [:id, :date, :buy_in_cents, :cash_out_cents, :location, :game_type, :stakes, :duration_minutes]
+              only: %i[id date buy_in_cents cash_out_cents location game_type stakes duration_minutes]
             ).merge('profit_cents' => session.profit_cents), status: :created
           else
-            render json: { errors: session.errors.full_messages }, status: :unprocessable_entity
+            render json: { errors: session.errors.full_messages }, status: :unprocessable_content
           end
         end
 
         def update
           if @poker_session.update(session_params)
             render json: @poker_session.as_json(
-              only: [:id, :date, :buy_in_cents, :cash_out_cents, :location, :game_type, :stakes, :duration_minutes]
+              only: %i[id date buy_in_cents cash_out_cents location game_type stakes duration_minutes]
             ).merge('profit_cents' => @poker_session.profit_cents)
           else
-            render json: { errors: @poker_session.errors.full_messages }, status: :unprocessable_entity
+            render json: { errors: @poker_session.errors.full_messages }, status: :unprocessable_content
           end
         end
 
@@ -56,7 +57,8 @@ module Api
         end
 
         def session_params
-          params.require(:poker_session).permit(:date, :buy_in_cents, :cash_out_cents, :location, :game_type, :stakes, :duration_minutes)
+          params.expect(poker_session: %i[date buy_in_cents cash_out_cents location game_type stakes
+                                          duration_minutes])
         end
       end
     end

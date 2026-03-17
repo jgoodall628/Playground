@@ -1,0 +1,44 @@
+plugins:
+  - rubocop-rails
+  - rubocop-performance
+
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  Exclude:
+    - 'bin/**/*'
+    - 'db/schema.rb'
+    - 'db/migrate/**/*'
+    - 'node_modules/**/*'
+    - 'vendor/**/*'
+    - 'tmp/**/*'
+    - 'log/**/*'
+    - 'storage/**/*'
+
+# Relax line length for readability
+Layout/LineLength:
+  Max: 120
+  Exclude:
+    - 'config/initializers/**/*'
+
+# Allow longer methods in controllers and tests
+Metrics/MethodLength:
+  Max: 20
+
+# Allow more complex methods where necessary
+Metrics/AbcSize:
+  Max: 25
+
+# Rails-specific settings
+Rails/FilePath:
+  EnforcedStyle: arguments
+
+Style/Documentation:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+# Inline validation messages are acceptable for small apps
+Rails/I18nLocaleTexts:
+  Enabled: false
