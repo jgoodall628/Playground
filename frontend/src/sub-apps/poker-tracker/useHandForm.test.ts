@@ -705,7 +705,7 @@ describe('remainingStack', () => {
 describe('submit', () => {
   it('calls createHand with correct session id and data', async () => {
     mockCreateHand.mockResolvedValue({});
-    const { result, onSaved } = setup('BTN');
+    const { result } = setup('BTN');
     act(() => {
       result.current.setCard1('As');
       result.current.setCard2('Kh');

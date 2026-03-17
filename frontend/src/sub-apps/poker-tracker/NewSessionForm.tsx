@@ -45,8 +45,8 @@ export default function NewSessionForm({ onSaved, onCancel }: Props) {
         duration_minutes: parseDuration(duration),
       });
       onSaved();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', (e as Error).message);
     } finally {
       setSaving(false);
     }

@@ -7,7 +7,7 @@ class ApplicationController < ActionController::API
     return if request.get? || request.head?
 
     expected = ENV['API_WRITE_TOKEN'].presence
-    return unless expected  # token not configured → open (dev/test)
+    return unless expected # token not configured → open (dev/test)
 
     provided = request.headers['Authorization']&.delete_prefix('Bearer ')
     head :unauthorized unless provided == expected
