@@ -34,7 +34,7 @@ jobs:
         run: curl -s "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
 
   update-frontend:
-    needs: detect-changes
+    needs: [detect-changes, deploy-backend]
     if: needs.detect-changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -53,6 +53,17 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Wait for backend to be healthy
+        if: needs.detect-changes.outputs.backend == 'true'
+        run: |
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" https://playground-api-dyu9.onrender.com/up)
+            if [ "$status" = "200" ]; then echo "Backend healthy"; exit 0; fi
+            echo "Attempt $i: got $status, retrying in 15s..."
+            sleep 15
+          done
+          echo "Backend did not become healthy in time" && exit 1
 
       - name: Publish OTA update
         working-directory: frontend
