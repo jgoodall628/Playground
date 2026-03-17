@@ -1,5 +1,5 @@
 class PokerHand < ApplicationRecord
-  POSITIONS = %w[BTN CO MP UTG SB BB].freeze
+  POSITIONS = %w[BTN CO MP LJ HJ UTG SB BB].freeze
 
   belongs_to :poker_session
   has_many :poker_actions, dependent: :destroy

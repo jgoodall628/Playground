@@ -2,7 +2,7 @@ class PokerAction < ApplicationRecord
   STREETS = %w[preflop flop turn river].freeze
   ACTORS = %w[hero villain].freeze
   ACTION_TYPES = %w[fold check call bet raise].freeze
-  POSITIONS = %w[BTN CO MP UTG SB BB].freeze
+  POSITIONS = %w[BTN CO MP LJ HJ UTG SB BB].freeze
 
   belongs_to :poker_hand
 
