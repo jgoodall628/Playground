@@ -149,7 +149,7 @@ describe('skipAutoAction', () => {
 
   it('is "check" when there is no current bet (post-flop)', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); }); // move to flop, resets lastBetCents to 0
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // move to flop, resets lastBetCents to 0
     expect(result.current.skipAutoAction).toBe('check');
   });
 
@@ -201,7 +201,7 @@ describe('skipAction', () => {
 
   it('records an auto-check when there is no current bet', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); }); // flop, lastBetCents = 0
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop, lastBetCents = 0
     act(() => { result.current.skipAction(); }); // SB to act on flop
     expect(result.current.actions[0].action_type).toBe('check');
   });
@@ -214,7 +214,7 @@ describe('skipAction', () => {
 
   it('does not add to foldedPositions when checking', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); }); // flop
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop
     act(() => { result.current.skipAction(); });
     expect(result.current.foldedPositions).toHaveLength(0);
   });
@@ -312,7 +312,7 @@ describe('addPendingAction', () => {
   describe('check', () => {
     it('records the check without changing the pot', () => {
       const { result } = setupActions('BTN');
-      act(() => { result.current.advanceStreet(); }); // flop, no bet
+      act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop, no bet
       const potBefore = result.current.potCents;
       act(() => { result.current.setPendingActionType('check'); });
       act(() => { result.current.addPendingAction(); });
@@ -324,7 +324,7 @@ describe('addPendingAction', () => {
   describe('bet', () => {
     it('adds the bet amount to the pot', () => {
       const { result } = setupActions('BTN');
-      act(() => { result.current.advanceStreet(); }); // flop
+      act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop
       const potBefore = result.current.potCents;
       act(() => { result.current.setPendingActionType('bet'); });
       act(() => { result.current.handleAmountStr('3'); }); // 3bb = 300 units
@@ -334,7 +334,7 @@ describe('addPendingAction', () => {
 
     it('updates lastBetCents', () => {
       const { result } = setupActions('BTN');
-      act(() => { result.current.advanceStreet(); }); // flop
+      act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop
       act(() => { result.current.setPendingActionType('bet'); });
       act(() => { result.current.handleAmountStr('3'); });
       act(() => { result.current.addPendingAction(); });
@@ -343,7 +343,7 @@ describe('addPendingAction', () => {
 
     it('tracks heroInvestedCents when hero bets', () => {
       const { result } = setupActions('SB'); // SB acts first on flop (postflop)
-      act(() => { result.current.advanceStreet(); }); // flop, SB first
+      act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop, SB first
       act(() => { result.current.setPendingActionType('bet'); });
       act(() => { result.current.handleAmountStr('2'); });
       act(() => { result.current.addPendingAction(); }); // hero SB bets 2bb
@@ -352,7 +352,7 @@ describe('addPendingAction', () => {
 
     it('does not change heroInvestedCents for villain bet', () => {
       const { result } = setupActions('BTN');
-      act(() => { result.current.advanceStreet(); }); // flop, SB acts first (not hero)
+      act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop, SB acts first (not hero)
       act(() => { result.current.setPendingActionType('bet'); });
       act(() => { result.current.handleAmountStr('2'); });
       act(() => { result.current.addPendingAction(); }); // villain SB bets
@@ -410,7 +410,7 @@ describe('addPendingAction', () => {
 
   it('records action with the current street', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); }); // move to flop
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // move to flop
     act(() => { result.current.setPendingActionType('check'); });
     act(() => { result.current.addPendingAction(); });
     expect(result.current.actions[0].street).toBe('flop');
@@ -442,7 +442,7 @@ describe('actor advancement', () => {
 
   it('wraps around the position order', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); }); // flop — lastBetCents = 0, all skips → check
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop — lastBetCents = 0, all skips → check
     expect(result.current.currentActor).toBe(POSTFLOP_ORDER[0]); // 'SB'
     // Skip (check) all 7 players; after the 7th the index wraps back to SB
     for (let i = 0; i < POSTFLOP_ORDER.length; i++) {
@@ -469,38 +469,38 @@ describe('actor advancement', () => {
   });
 });
 
-// ── advanceStreet ─────────────────────────────────────────────────────────────
+// ── requestAdvanceStreet ──────────────────────────────────────────────────────
 
-describe('advanceStreet', () => {
+describe('requestAdvanceStreet', () => {
   it('advances from preflop to flop', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); });
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); });
     expect(result.current.currentStreet).toBe('flop');
   });
 
   it('advances through all streets in order', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); });
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); });
     expect(result.current.currentStreet).toBe('flop');
-    act(() => { result.current.advanceStreet(); });
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); });
     expect(result.current.currentStreet).toBe('turn');
-    act(() => { result.current.advanceStreet(); });
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); });
     expect(result.current.currentStreet).toBe('river');
   });
 
   it('transitions to result step from river', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); }); // flop
-    act(() => { result.current.advanceStreet(); }); // turn
-    act(() => { result.current.advanceStreet(); }); // river
-    act(() => { result.current.advanceStreet(); }); // result
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // turn
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // river
+    act(() => { result.current.requestAdvanceStreet(); }); // result (no board input needed)
     expect(result.current.step).toBe('result');
   });
 
   it('resets lastBetCents to 0', () => {
     const { result } = setupActions('BTN');
     expect(result.current.lastBetCents).toBe(BIG_BLIND);
-    act(() => { result.current.advanceStreet(); });
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); });
     expect(result.current.lastBetCents).toBe(0);
   });
 
@@ -509,7 +509,7 @@ describe('advanceStreet', () => {
     // advance past UTG
     act(() => { result.current.skipAction(); });
     expect(result.current.currentActor).toBe('LJ');
-    act(() => { result.current.advanceStreet(); }); // flop
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop
     // post-flop order is POSTFLOP_ORDER, index 0 = 'SB'
     expect(result.current.currentActor).toBe(POSTFLOP_ORDER[0]);
   });
@@ -518,7 +518,7 @@ describe('advanceStreet', () => {
     const { result } = setupActions('BTN');
     act(() => { result.current.setPendingActionType('bet'); });
     act(() => { result.current.handleAmountStr('2'); });
-    act(() => { result.current.advanceStreet(); });
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); });
     expect(result.current.pendingActionType).toBe('');
     expect(result.current.pendingAmountStr).toBe('');
   });
@@ -526,7 +526,7 @@ describe('advanceStreet', () => {
   it('preserves foldedPositions across streets', () => {
     const { result } = setupActions('BTN');
     act(() => { result.current.skipAction(); }); // UTG folds
-    act(() => { result.current.advanceStreet(); });
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); });
     expect(result.current.foldedPositions).toContain('UTG');
   });
 });
@@ -585,7 +585,7 @@ describe('availableActions', () => {
 
   it('shows fold/check/bet when not facing a bet (post-flop)', () => {
     const { result } = setupActions('BTN');
-    act(() => { result.current.advanceStreet(); }); // flop, lastBetCents = 0
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop, lastBetCents = 0
     expect(result.current.availableActions).toEqual(['fold', 'check', 'bet']);
   });
 
@@ -680,7 +680,7 @@ describe('remainingStack', () => {
 
   it('decreases as hero invests', () => {
     const { result } = setupActions('SB'); // hero = SB, acts first on flop
-    act(() => { result.current.advanceStreet(); }); // flop
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop
     act(() => { result.current.setPendingActionType('bet'); });
     act(() => { result.current.handleAmountStr('5'); }); // 5bb
     act(() => { result.current.addPendingAction(); });
@@ -692,7 +692,7 @@ describe('remainingStack', () => {
     const { result } = setup('SB');
     act(() => { result.current.setStackStr('1'); }); // 1bb stack
     act(() => { result.current.startHand(); });
-    act(() => { result.current.advanceStreet(); }); // flop, SB acts first
+    act(() => { result.current.requestAdvanceStreet(); result.current.confirmBoardInput([]); }); // flop, SB acts first
     act(() => { result.current.setPendingActionType('bet'); });
     act(() => { result.current.handleAmountStr('5'); }); // bet 5bb (more than 1bb stack)
     act(() => { result.current.addPendingAction(); }); // hero SB bets

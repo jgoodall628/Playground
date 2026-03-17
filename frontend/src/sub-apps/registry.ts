@@ -1,12 +1,12 @@
 import React from 'react';
 import HelloWorldApp from './hello-world/HelloWorldApp';
-import PokerHome from './poker-tracker/PokerHome';
+import PokerTrackerNavigator from './poker-tracker/PokerTrackerNavigator';
 
 type SubAppComponent = React.ComponentType<{ slug: string }>;
 
 const registry: Record<string, SubAppComponent> = {
   'hello-world': HelloWorldApp,
-  'poker-tracker': PokerHome,
+  'poker-tracker': PokerTrackerNavigator,
 };
 
 export function getSubAppComponent(slug: string): SubAppComponent | null {
