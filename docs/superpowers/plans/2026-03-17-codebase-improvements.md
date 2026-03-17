@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix a live bug, improve developer experience, harden API security, and make the codebase clearer for humans and AI agents.
+**Goal:** Fix a live bug, improve developer experience, and make the codebase clearer for humans and AI agents.
 
-**Architecture:** Nine independent tasks split across backend (Rails) and frontend (Expo/RN). Tasks 1-5 are urgent fixes; tasks 6-9 are structural improvements. All tasks are independent and can be executed in any order. No new files except `frontend/src/config.ts` and `frontend/src/sub-apps/poker-tracker/constants.ts`.
+**Architecture:** Eight independent tasks split across backend (Rails) and frontend (Expo/RN). Tasks 1, 2, 3, 5 are urgent fixes; tasks 6-9 are structural improvements. All tasks are independent and can be executed in any order. No new files except `frontend/src/config.ts` and `frontend/src/sub-apps/poker-tracker/constants.ts`.
 
 **Tech Stack:** Ruby 3.3.6 / Rails 8.1 (backend), TypeScript / React Native / Expo SDK 54 (frontend), GitHub Actions (CI).
 
@@ -20,7 +20,6 @@ Files **modified**:
 - `backend/app/models/poker_hand.rb` — add LJ/HJ to POSITIONS; add schema comment block
 - `backend/app/models/poker_action.rb` — add LJ/HJ to POSITIONS; add schema comment block
 - `backend/app/models/poker_session.rb` — add schema comment block
-- `backend/app/controllers/application_controller.rb` — add write-protection token guard
 - `.github/workflows/deploy.yml` — add `needs: deploy-backend` to `update-frontend` job; add health-check poll step
 - `frontend/src/api/client.ts` — import API_BASE_URL from `src/config.ts`
 - `frontend/src/sub-apps/poker-tracker/api.ts` — move types to `constants.ts`; import API_BASE from `src/config.ts`; keep all API functions
@@ -221,103 +220,6 @@ Expected: no errors.
 git add frontend/src/config.ts frontend/src/api/client.ts frontend/src/sub-apps/poker-tracker/api.ts
 git commit -m "feat: introduce shared API base URL config with __DEV__ toggle"
 ```
-
----
-
-### Task 4: Add write-protection token to API
-
-**Files:**
-- Modify: `backend/app/controllers/application_controller.rb`
-
-All write operations (POST, PATCH, PUT, DELETE) currently require no auth. A `before_action` guard checks a token header on mutating requests only — GET requests and the health check are unaffected.
-
-- [ ] **Step 1: Update ApplicationController**
-
-Replace the full content of `backend/app/controllers/application_controller.rb`:
-
-```ruby
-class ApplicationController < ActionController::API
-  before_action :require_write_token
-
-  private
-
-  def require_write_token
-    return if request.get? || request.head?
-
-    expected = ENV['API_WRITE_TOKEN'].presence
-    return unless expected  # token not configured → open (dev/test)
-
-    provided = request.headers['Authorization']&.delete_prefix('Bearer ')
-    head :unauthorized unless provided == expected
-  end
-end
-```
-
-When `API_WRITE_TOKEN` is not set (local dev, test), all requests pass through. In production, set the env var on Render and in the frontend.
-
-- [ ] **Step 2: Add the token to `frontend/src/config.ts`**
-
-Append to `frontend/src/config.ts`:
-
-```ts
-// Set via EAS environment variable (preview / production channels)
-// Leave blank for local dev — backend allows unauthenticated writes when token is unset
-export const API_WRITE_TOKEN = process.env.EXPO_PUBLIC_API_WRITE_TOKEN ?? '';
-```
-
-- [ ] **Step 3: Thread the token through the poker API client**
-
-In `frontend/src/sub-apps/poker-tracker/api.ts`, update the import line and the `request` function:
-
-Change the import line to:
-```ts
-import { API_BASE_URL, API_WRITE_TOKEN } from '../../config';
-```
-
-Update the `request` function headers:
-```ts
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (API_WRITE_TOKEN) headers['Authorization'] = `Bearer ${API_WRITE_TOKEN}`;
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers,
-    ...options,
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.errors?.join(', ') || `HTTP ${response.status}`);
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json();
-}
-```
-
-- [ ] **Step 4: TypeScript check**
-
-```sh
-cd /home/user/Playground/frontend
-mise exec -- npx tsc --noEmit
-```
-
-Expected: no errors.
-
-- [ ] **Step 5: Verify backend still boots**
-
-```sh
-cd /home/user/Playground/backend
-mise exec -- bin/rails runner "puts ApplicationController.ancestors.first"
-```
-
-Expected: `ApplicationController`
-
-- [ ] **Step 6: Commit**
-
-```sh
-git add backend/app/controllers/application_controller.rb frontend/src/config.ts frontend/src/sub-apps/poker-tracker/api.ts
-git commit -m "feat: add write-protection token guard to API; thread token through poker client"
-```
-
-> **After merging:** Set `API_WRITE_TOKEN` as an env var in Render dashboard (under your web service → Environment). Set `EXPO_PUBLIC_API_WRITE_TOKEN` as an EAS secret for the preview and production environments.
 
 ---
 
@@ -693,13 +595,13 @@ mise exec -- bin/rails runner "puts 'OK'"
 
 Expected: `OK`
 
-- [ ] **Step 3: Confirm all 9 tasks committed**
+- [ ] **Step 3: Confirm all 8 tasks committed**
 
 ```sh
 git log --oneline -10
 ```
 
-Expected: at least 8 commits visible (Tasks 1-8 each produce one commit; Task 4 may have 2 due to backend + frontend changes).
+Expected: at least 7 commits visible (Tasks 1-3, 5-8 each produce one commit).
 
 - [ ] **Step 4: Push to feature branch**
 
