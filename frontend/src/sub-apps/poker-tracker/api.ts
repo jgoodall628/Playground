@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config';
+import { API_BASE_URL, API_WRITE_TOKEN } from '../../config';
 
 const API_BASE = `${API_BASE_URL}/poker`;
 
@@ -53,8 +53,10 @@ export interface PokerStats {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (API_WRITE_TOKEN) headers['Authorization'] = `Bearer ${API_WRITE_TOKEN}`;
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...options,
   });
   if (!response.ok) {
