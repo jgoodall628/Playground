@@ -3,12 +3,12 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator,
 } from 'react-native';
+import { useHandForm } from './useHandForm';
 import {
   POSITIONS, STREETS,
   fmt,
-  useHandForm,
   type Street,
-} from './useHandForm';
+} from './constants';
 
 const STREET_COLORS_MAP: Record<Street, string> = {
   preflop: '#7C3AED',

@@ -1,49 +1,19 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { createHand } from './api';
+import {
+  STREETS, BIG_BLIND, SMALL_BLIND,
+  type Street, type ActionType, type WizardStep,
+  type ActionInput, type BoardCards,
+  actionOrderFor,
+} from './constants';
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
-
-export const POSITIONS = ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
-export const STREETS = ['preflop', 'flop', 'turn', 'river'] as const;
-export const ACTION_TYPES = ['fold', 'check', 'call', 'bet', 'raise'] as const;
-
-export const PREFLOP_ORDER  = ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
-export const POSTFLOP_ORDER = ['SB', 'BB', 'UTG', 'LJ', 'HJ', 'CO', 'BTN'];
-
-// 1bb = 100 internal units (integer arithmetic denominated in BBs)
-export const BIG_BLIND   = 100;
-export const SMALL_BLIND = 50;
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
-
-export type Street     = typeof STREETS[number];
-export type ActionType = typeof ACTION_TYPES[number];
-export type WizardStep = 'setup' | 'actions' | 'result';
-
-export interface ActionInput {
-  street: string;
-  actor: 'hero' | 'villain';
-  villain_position: string;
-  action_type: ActionType;
-  amount: string;
-}
-
-export interface BoardCards {
-  flop: string[];
-  turn: string[];
-  river: string[];
-}
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-
-export function fmt(units: number) {
-  return `${(units / 100).toFixed(1)}bb`;
-}
-
-export function actionOrderFor(street: Street): string[] {
-  return street === 'preflop' ? PREFLOP_ORDER : POSTFLOP_ORDER;
-}
+// Re-export for consumers that import these from useHandForm
+export {
+  POSITIONS, STREETS, ACTION_TYPES, PREFLOP_ORDER, POSTFLOP_ORDER,
+  BIG_BLIND, SMALL_BLIND, fmt, actionOrderFor,
+} from './constants';
+export type { Street, ActionType, WizardStep, ActionInput, BoardCards } from './constants';
 
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
