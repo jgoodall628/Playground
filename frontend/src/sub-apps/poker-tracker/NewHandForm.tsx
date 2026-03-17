@@ -108,6 +108,90 @@ const cpStyles = StyleSheet.create({
   suitTextDisabled: { opacity: 0.35 },
 });
 
+// ─── BoardCardPicker ────────────────────────────────────────────────────────────
+
+function BoardCardPicker({ count, streetColor, onConfirm }: {
+  count: 1 | 3; streetColor: string; onConfirm: (cards: string[]) => void;
+}) {
+  const [slots, setSlots] = useState<string[]>(Array(count).fill(''));
+  const [activeSlot, setActiveSlot] = useState(0);
+  const [pendingRank, setPendingRank] = useState<string | null>(null);
+
+  const suitColor = (s: string) => (['♥', '♦'].includes(s) ? '#dc2626' : '#111827');
+
+  const displayCard = (card: string) => {
+    if (!card) return null;
+    const rank = card.slice(0, -1);
+    const suitIdx = SUIT_CHARS.indexOf(card.slice(-1));
+    const suit = SUITS[suitIdx] ?? '';
+    return { rank, suit, color: suitColor(suit) };
+  };
+
+  const selectSuit = (suitIdx: number) => {
+    if (!pendingRank) return;
+    const newCard = pendingRank + SUIT_CHARS[suitIdx];
+    const newSlots = [...slots];
+    newSlots[activeSlot] = newCard;
+    setSlots(newSlots);
+    // Advance to next empty slot
+    const nextEmpty = newSlots.findIndex((s, i) => i > activeSlot && !s);
+    if (nextEmpty !== -1) setActiveSlot(nextEmpty);
+    setPendingRank(null);
+  };
+
+  const allFilled = slots.every(s => s !== '');
+
+  return (
+    <View style={bcpStyles.container}>
+      <View style={bcpStyles.slots}>
+        {slots.map((card, i) => {
+          const c = displayCard(card);
+          return (
+            <TouchableOpacity
+              key={i}
+              style={[bcpStyles.slot, activeSlot === i && { borderColor: streetColor }]}
+              onPress={() => { setActiveSlot(i); setPendingRank(null); }}
+            >
+              {c
+                ? <Text style={[bcpStyles.cardText, { color: c.color }]}>{c.rank}{c.suit}</Text>
+                : <Text style={bcpStyles.slotEmpty}>{activeSlot === i ? '?' : '–'}</Text>}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <View style={cpStyles.rankGrid}>
+        {RANKS.map((r) => (
+          <TouchableOpacity key={r} style={[cpStyles.rankBtn, pendingRank === r && { backgroundColor: streetColor, borderColor: streetColor }]} onPress={() => setPendingRank(r)}>
+            <Text style={[cpStyles.rankText, pendingRank === r && cpStyles.rankTextActive]}>{r}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={cpStyles.suitRow}>
+        {SUITS.map((s, i) => (
+          <TouchableOpacity key={s} style={[cpStyles.suitBtn, !pendingRank && cpStyles.suitBtnDisabled]} onPress={() => selectSuit(i)} disabled={!pendingRank}>
+            <Text style={[cpStyles.suitText, { color: suitColor(s) }, !pendingRank && cpStyles.suitTextDisabled]}>{s}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity
+        style={[styles.primaryBtn, !allFilled && styles.primaryBtnDisabled, { backgroundColor: streetColor }]}
+        onPress={() => allFilled && onConfirm(slots)}
+        disabled={!allFilled}
+      >
+        <Text style={styles.primaryBtnText}>Deal Cards →</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const bcpStyles = StyleSheet.create({
+  container: { marginBottom: 16 },
+  slots: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  slot: { width: 56, height: 76, borderRadius: 8, borderWidth: 2, borderColor: '#e5e7eb', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  slotEmpty: { fontSize: 22, color: '#d1d5db' },
+  cardText: { fontSize: 20, fontWeight: '700' },
+});
+
 // ─── BetSizingButtons ──────────────────────────────────────────────────────────
 
 function BetSizingButtons({ potCents, remainingStackCents, lastBetCents, selected, onSelect }: {
@@ -177,6 +261,49 @@ const chipStyles = StyleSheet.create({
   smText: { fontSize: 12 },
 });
 
+// ─── BoardDisplay ───────────────────────────────────────────────────────────────
+
+function BoardDisplay({ boardCards, currentStreet }: {
+  boardCards: { flop: string[]; turn: string[]; river: string[] };
+  currentStreet: Street;
+}) {
+  const streetIdx = STREETS.indexOf(currentStreet);
+
+  const allCards: string[] = [
+    ...(streetIdx >= 1 ? boardCards.flop : []),
+    ...(streetIdx >= 2 ? boardCards.turn : []),
+    ...(streetIdx >= 3 ? boardCards.river : []),
+  ];
+
+  if (allCards.length === 0) return null;
+
+  const suitColor = (s: string) => (['♥', '♦'].includes(s) ? '#dc2626' : '#fff');
+
+  const renderCard = (card: string, i: number) => {
+    const rank = card.slice(0, -1);
+    const suitIdx = SUIT_CHARS.indexOf(card.slice(-1));
+    const suit = SUITS[suitIdx] ?? '';
+    const isRed = ['♥', '♦'].includes(suit);
+    return (
+      <View key={i} style={bdStyles.card}>
+        <Text style={[bdStyles.cardText, { color: isRed ? '#dc2626' : '#111827' }]}>{rank}{suit}</Text>
+      </View>
+    );
+  };
+
+  return (
+    <View style={bdStyles.row}>
+      {allCards.map((card, i) => renderCard(card, i))}
+    </View>
+  );
+}
+
+const bdStyles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  card: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.9)', minWidth: 36, alignItems: 'center' },
+  cardText: { fontSize: 14, fontWeight: '700' },
+});
+
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
@@ -220,12 +347,39 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
     const streetColor = STREET_COLORS_MAP[form.currentStreet];
     const streetIdx   = STREETS.indexOf(form.currentStreet);
     const isLastStreet = streetIdx === STREETS.length - 1;
+    const nextStreetName = !isLastStreet
+      ? STREETS[streetIdx + 1].charAt(0).toUpperCase() + STREETS[streetIdx + 1].slice(1)
+      : '';
+
+    // ── Board card input screen ──
+    if (form.boardInputPending !== null) {
+      const targetStreet = form.boardInputPending;
+      const targetColor  = STREET_COLORS_MAP[targetStreet];
+      const cardCount    = targetStreet === 'flop' ? 3 : 1;
+
+      return (
+        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+          <View style={[styles.streetHeader, { backgroundColor: targetColor }]}>
+            <Text style={styles.streetLabel}>{targetStreet.toUpperCase()}</Text>
+            <Text style={styles.potHeaderText}>Enter board cards</Text>
+          </View>
+          <BoardCardPicker
+            count={cardCount as 1 | 3}
+            streetColor={targetColor}
+            onConfirm={form.confirmBoardInput}
+          />
+        </ScrollView>
+      );
+    }
 
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Street header */}
         <View style={[styles.streetHeader, { backgroundColor: streetColor }]}>
-          <Text style={styles.streetLabel}>{form.currentStreet.toUpperCase()}</Text>
+          <View>
+            <Text style={styles.streetLabel}>{form.currentStreet.toUpperCase()}</Text>
+            <BoardDisplay boardCards={form.boardCards} currentStreet={form.currentStreet} />
+          </View>
           {form.editingPot ? (
             <View style={styles.potEditRow}>
               <Text style={styles.potHeaderText}>Pot: </Text>
@@ -327,12 +481,21 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
           <TouchableOpacity style={styles.secondaryBtn} onPress={() => form.setStep('result')}>
             <Text style={styles.secondaryBtnText}>End Hand ✓</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryBtn} onPress={form.advanceStreet}>
+          <TouchableOpacity
+            style={[styles.primaryBtn, !form.canAdvanceStreet && styles.primaryBtnDisabled]}
+            onPress={form.requestAdvanceStreet}
+            disabled={!form.canAdvanceStreet}
+          >
             <Text style={styles.primaryBtnText}>
-              {isLastStreet ? 'To Result →' : `${STREETS[streetIdx + 1].charAt(0).toUpperCase() + STREETS[streetIdx + 1].slice(1)} →`}
+              {isLastStreet ? 'To Result →' : `${nextStreetName} →`}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Hint when street advance is blocked */}
+        {!form.canAdvanceStreet && (
+          <Text style={styles.advanceHint}>Complete all actions before advancing</Text>
+        )}
       </ScrollView>
     );
   }
@@ -353,6 +516,9 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
         {form.stackStr && <Text style={styles.summaryRow}>Stack: <Text style={styles.summaryVal}>{form.stackStr}bb</Text></Text>}
         <Text style={styles.summaryRow}>Actions logged: <Text style={styles.summaryVal}>{form.actions.length}</Text></Text>
         <Text style={styles.summaryRow}>Final pot: <Text style={styles.summaryVal}>{fmt(form.potCents)}</Text></Text>
+        {form.boardCards.flop.length > 0 && (
+          <Text style={styles.summaryRow}>Board: <Text style={styles.summaryVal}>{[...form.boardCards.flop, ...form.boardCards.turn, ...form.boardCards.river].join(' ')}</Text></Text>
+        )}
       </View>
 
       <Text style={styles.label}>Result (bb)</Text>
@@ -400,7 +566,7 @@ const styles = StyleSheet.create({
   secondaryBtn: { flex: 1, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: '#7C3AED', alignItems: 'center', marginBottom: 12, marginRight: 10 },
   secondaryBtnText: { color: '#7C3AED', fontWeight: '600', fontSize: 15 },
 
-  streetHeader: { borderRadius: 12, padding: 14, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  streetHeader: { borderRadius: 12, padding: 14, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   streetLabel: { fontSize: 20, fontWeight: '800', color: '#fff', letterSpacing: 2 },
   potHeaderText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   potEditRow: { flexDirection: 'row', alignItems: 'center' },
@@ -432,6 +598,8 @@ const styles = StyleSheet.create({
   undoText: { color: '#dc2626', fontSize: 12 },
 
   footerRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+
+  advanceHint: { textAlign: 'center', fontSize: 12, color: '#9ca3af', marginTop: -8, marginBottom: 8 },
 
   summaryCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 16 },
   summaryTitle: { fontSize: 13, fontWeight: '700', color: '#7C3AED', marginBottom: 8 },
