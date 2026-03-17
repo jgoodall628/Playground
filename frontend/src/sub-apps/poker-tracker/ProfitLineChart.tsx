@@ -39,21 +39,28 @@ export default function ProfitLineChart({ data }: Props) {
 
   if (chartData.length === 0) {
     return (
-      <View>
+      <>
         {filterBar}
         <Text style={styles.empty}>No data for this period.</Text>
-      </View>
+      </>
     );
   }
 
-  const values = chartData.map((d) => d.value);
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
+  // Compute min/max in a single pass — avoids intermediate array + spread
+  let minVal = chartData[0].value;
+  let maxVal = chartData[0].value;
+  for (const d of chartData) {
+    if (d.value < minVal) minVal = d.value;
+    if (d.value > maxVal) maxVal = d.value;
+  }
   const range = maxVal - minVal || 1;
+
+  // Normalize a profit value to a y-coordinate within the chart
+  const toY = (v: number) => CHART_HEIGHT - ((v - minVal) / range) * (CHART_HEIGHT - 8) - 4;
 
   const points = chartData.map((d, i) => ({
     x: chartData.length === 1 ? chartWidth / 2 : (i / (chartData.length - 1)) * chartWidth,
-    y: CHART_HEIGHT - ((d.value - minVal) / range) * (CHART_HEIGHT - 8) - 4,
+    y: toY(d.value),
     value: d.value,
   }));
 
@@ -68,16 +75,17 @@ export default function ProfitLineChart({ data }: Props) {
   });
 
   const lastValue = points[points.length - 1].value;
-  const zeroY = minVal < 0 && maxVal > 0
-    ? CHART_HEIGHT - ((0 - minVal) / range) * (CHART_HEIGHT - 8) - 4
-    : null;
+  const zeroY = minVal < 0 && maxVal > 0 ? toY(0) : null;
 
   return (
-    <View>
+    <>
       {filterBar}
       <View
         style={styles.chart}
-        onLayout={(e) => setChartWidth(e.nativeEvent.layout.width)}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          if (w !== chartWidth) setChartWidth(w);
+        }}
       >
         {zeroY !== null && (
           <View style={[styles.zeroLine, { top: zeroY }]} />
@@ -109,7 +117,7 @@ export default function ProfitLineChart({ data }: Props) {
       <Text style={[styles.lastValue, { color: profitColor(lastValue) }]}>
         {formatMoney(lastValue)}
       </Text>
-    </View>
+    </>
   );
 }
 
