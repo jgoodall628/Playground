@@ -275,11 +275,13 @@ describe('addPendingAction', () => {
     expect(Alert.alert).toHaveBeenCalledWith('Enter a bet amount');
   });
 
-  it('alerts when call is selected but no amount entered', () => {
-    const { result } = setupActions('BTN');
+  it('auto-uses lastBetCents as the call amount (no manual entry needed)', () => {
+    const { result } = setupActions('BTN'); // lastBetCents = BIG_BLIND = 100
+    const potBefore = result.current.potCents;
     act(() => { result.current.setPendingActionType('call'); });
     act(() => { result.current.addPendingAction(); });
-    expect(Alert.alert).toHaveBeenCalledWith('Enter a bet amount');
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(result.current.potCents).toBe(potBefore + 100); // auto-called 1bb
   });
 
   describe('fold', () => {
@@ -370,13 +372,12 @@ describe('addPendingAction', () => {
   });
 
   describe('call', () => {
-    it('adds call amount to pot but does not update lastBetCents', () => {
-      const { result } = setupActions('BTN');
+    it('adds lastBetCents to pot and does not update lastBetCents', () => {
+      const { result } = setupActions('BTN'); // lastBetCents = BIG_BLIND = 100
       const potBefore = result.current.potCents;
       act(() => { result.current.setPendingActionType('call'); });
-      act(() => { result.current.handleAmountStr('1'); }); // call 1bb
-      act(() => { result.current.addPendingAction(); });
-      expect(result.current.potCents).toBe(potBefore + 100);
+      act(() => { result.current.addPendingAction(); }); // no manual amount needed
+      expect(result.current.potCents).toBe(potBefore + 100); // auto-used lastBetCents
       // lastBetCents should still be BIG_BLIND (unchanged by a call)
       expect(result.current.lastBetCents).toBe(BIG_BLIND);
     });
@@ -557,20 +558,61 @@ describe('amount input', () => {
     expect(result.current.pendingAmountCents).toBe(300);
   });
 
-  it('needsAmount is true for bet, raise, call', () => {
+  it('needsAmount is true for bet and raise only', () => {
     const { result } = setupActions('BTN');
-    for (const t of ['bet', 'raise', 'call'] as const) {
+    for (const t of ['bet', 'raise'] as const) {
       act(() => { result.current.setPendingActionType(t); });
       expect(result.current.needsAmount).toBe(true);
     }
   });
 
-  it('needsAmount is false for fold and check', () => {
+  it('needsAmount is false for fold, check, and call', () => {
     const { result } = setupActions('BTN');
-    for (const t of ['fold', 'check'] as const) {
+    for (const t of ['fold', 'check', 'call'] as const) {
       act(() => { result.current.setPendingActionType(t); });
       expect(result.current.needsAmount).toBe(false);
     }
+  });
+});
+
+// ── availableActions ──────────────────────────────────────────────────────────
+
+describe('availableActions', () => {
+  it('shows fold/call/raise when facing a bet (non-BB preflop)', () => {
+    const { result } = setupActions('BTN'); // UTG first, lastBetCents = BIG_BLIND
+    expect(result.current.availableActions).toEqual(['fold', 'call', 'raise']);
+  });
+
+  it('shows fold/check/bet when not facing a bet (post-flop)', () => {
+    const { result } = setupActions('BTN');
+    act(() => { result.current.advanceStreet(); }); // flop, lastBetCents = 0
+    expect(result.current.availableActions).toEqual(['fold', 'check', 'bet']);
+  });
+
+  it('shows fold/check/bet for BB preflop with no raise (bbPreflopOption)', () => {
+    const { result } = setupActions('BTN');
+    // advance to BB (index 6 in PREFLOP_ORDER)
+    const stepsToSB = PREFLOP_ORDER.indexOf('SB'); // 5
+    for (let i = 0; i <= stepsToSB; i++) {
+      act(() => { result.current.skipAction(); });
+    }
+    expect(result.current.currentActor).toBe('BB');
+    expect(result.current.availableActions).toEqual(['fold', 'check', 'bet']);
+  });
+
+  it('shows fold/call/raise for BB preflop after a raise', () => {
+    const { result } = setupActions('UTG');
+    act(() => { result.current.setPendingActionType('raise'); });
+    act(() => { result.current.handleAmountStr('3'); });
+    act(() => { result.current.addPendingAction(); }); // UTG raises to 3bb
+    // advance to BB
+    const stepsToLJ = PREFLOP_ORDER.indexOf('LJ');
+    for (let i = 0; i < PREFLOP_ORDER.indexOf('SB') - stepsToLJ; i++) {
+      act(() => { result.current.skipAction(); });
+    }
+    act(() => { result.current.skipAction(); }); // SB
+    expect(result.current.currentActor).toBe('BB');
+    expect(result.current.availableActions).toEqual(['fold', 'call', 'raise']);
   });
 });
 
