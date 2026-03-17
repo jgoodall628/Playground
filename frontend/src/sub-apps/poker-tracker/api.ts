@@ -28,6 +28,7 @@ export interface PokerHand {
   effective_stack_cents?: number;
   pot_result_cents?: number;
   notes?: string;
+  villain_cards?: Record<string, string>;
   actions?: PokerAction[];
   session?: { id: number; date: string; stakes?: string };
 }
