@@ -29,6 +29,12 @@ export interface ActionInput {
   amount: string;
 }
 
+export interface BoardCards {
+  flop: string[];
+  turn: string[];
+  river: string[];
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 export function fmt(units: number) {
@@ -65,6 +71,15 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   const [editingPot, setEditingPot] = useState(false);
   const [potEditStr, setPotEditStr] = useState('');
 
+  // ── Board cards ──
+  const [boardCards, setBoardCards] = useState<BoardCards>({ flop: [], turn: [], river: [] });
+  // When non-null, we're waiting for the user to input board cards for this street
+  const [boardInputPending, setBoardInputPending] = useState<Street | null>(null);
+
+  // ── Action completion tracking ──
+  // Tracks which positions have acted since the last bet/raise (or since street start)
+  const [actedSinceLastBet, setActedSinceLastBet] = useState<string[]>([]);
+
   // ── Result ──
   const [resultStr, setResultStr] = useState('');
   const [resultPositive, setResultPositive] = useState(true);
@@ -85,6 +100,13 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   const availableActions: ActionType[] = isFacingBet
     ? ['fold', 'call', 'raise']
     : ['fold', 'check', 'bet'];
+
+  // Street is advanceable when all active players have acted since the last bet,
+  // there's no pending action selected, and the BB preflop option hasn't been used yet.
+  const activePositions = actorOrder.filter(p => !foldedPositions.includes(p));
+  const allActed = activePositions.length === 0 ||
+    activePositions.every(p => actedSinceLastBet.includes(p));
+  const canAdvanceStreet = allActed && !bbPreflopOption && !pendingActionType;
 
   // ── Advance to next non-folded actor ──
   function advanceActor(folded: string[]) {
@@ -123,6 +145,15 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
       if (actionType === 'bet' || actionType === 'raise') setLastBetCents(amountCents);
     }
 
+    // Update acted-since-last-bet tracking
+    if (actionType === 'bet' || actionType === 'raise') {
+      // Reset orbit — only the bettor has "acted" in this new orbit
+      setActedSinceLastBet([currentActor]);
+    } else {
+      // fold / check / call — add current actor to acted set
+      setActedSinceLastBet(prev => [...new Set([...prev, currentActor])]);
+    }
+
     advanceActor(newFolded);
   }
 
@@ -140,6 +171,8 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     setLastBetCents(BIG_BLIND); // BB has already posted
     setCurrentActorIdx(0);
     setFoldedPositions([]);
+    // BB has effectively "bet" by posting, so mark BB as having acted
+    setActedSinceLastBet(['BB']);
     setStep('actions');
   }
 
@@ -163,14 +196,40 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     resetPending();
   }
 
-  // ── Advance to next street ──
-  function advanceStreet() {
+  // ── Advance to next street (internal — does not trigger board input) ──
+  function advanceStreet(folded: string[] = foldedPositions) {
     const idx = STREETS.indexOf(currentStreet);
     if (idx >= STREETS.length - 1) { setStep('result'); return; }
-    setCurrentStreet(STREETS[idx + 1]);
-    setCurrentActorIdx(0);
+    const nextStreet = STREETS[idx + 1];
+    setCurrentStreet(nextStreet);
+    // Start at first non-folded position for the new street
+    const order = actionOrderFor(nextStreet);
+    const firstActive = order.findIndex(p => !folded.includes(p));
+    setCurrentActorIdx(firstActive >= 0 ? firstActive : 0);
     setLastBetCents(0);
+    setActedSinceLastBet([]);
     resetPending();
+  }
+
+  // ── Request street advance (triggers board card input for flop/turn/river) ──
+  function requestAdvanceStreet() {
+    const idx = STREETS.indexOf(currentStreet);
+    if (idx >= STREETS.length - 1) {
+      // River → result: no board input needed
+      setStep('result');
+      return;
+    }
+    const nextStreet = STREETS[idx + 1];
+    // All postflop streets need board card input
+    setBoardInputPending(nextStreet);
+  }
+
+  // ── Confirm board card input ──
+  function confirmBoardInput(cards: string[]) {
+    if (!boardInputPending) return;
+    setBoardCards(prev => ({ ...prev, [boardInputPending]: cards }));
+    setBoardInputPending(null);
+    advanceStreet();
   }
 
   // ── Amount input handling ──
@@ -258,6 +317,11 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     skipAutoAction,
     isFacingBet,
     availableActions,
+    canAdvanceStreet,
+
+    // Board cards
+    boardCards,
+    boardInputPending,
 
     // Result
     resultStr, setResultStr,
@@ -269,7 +333,8 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     startHand,
     addPendingAction,
     skipAction,
-    advanceStreet,
+    requestAdvanceStreet,
+    confirmBoardInput,
     handleAmountStr,
     handleSizingSelect,
     startPotEdit,
