@@ -1,6 +1,5 @@
 import { SubAppDefinition } from '../types';
-
-const API_BASE_URL = 'https://playground-api-dyu9.onrender.com/api/v1';
+import { API_BASE_URL } from '../config';
 
 export async function fetchSubApps(): Promise<SubAppDefinition[]> {
   const response = await fetch(`${API_BASE_URL}/sub_apps`);

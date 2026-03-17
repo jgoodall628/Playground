@@ -1,4 +1,6 @@
-const API_BASE = 'https://playground-api-dyu9.onrender.com/api/v1/poker';
+import { API_BASE_URL } from '../../config';
+
+const API_BASE = `${API_BASE_URL}/poker`;
 
 export interface PokerSession {
   id: number;
