@@ -24,6 +24,7 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   // ── Setup ──
   const [card1, setCard1] = useState('');
   const [card2, setCard2] = useState('');
+  const [villainCards, setVillainCardsState] = useState<Record<string, string>>({});
   const [heroPosition, setHeroPosition] = useState('');
   const [stackStr, setStackStr] = useState('100');
   const [startingPotStr, setStartingPotStr] = useState('');
@@ -56,6 +57,11 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // ── Villain card setter ──
+  function setVillainCard(position: string, cards: string) {
+    setVillainCardsState(prev => ({ ...prev, [position]: cards }));
+  }
+
   // ── Derived values ──
   const stackCents       = stackStr ? Math.round(parseFloat(stackStr) * 100) : 0;
   const remainingStack   = Math.max(0, stackCents - heroInvestedCents);
@@ -77,6 +83,11 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   const allActed = activePositions.length === 0 ||
     activePositions.every(p => actedSinceLastBet.includes(p));
   const canAdvanceStreet = allActed && !bbPreflopOption && !pendingActionType;
+
+  // Positions still active (not folded, not hero) — used for villain hole card input at showdown
+  const showdownPositions = actorOrder.filter(
+    p => !foldedPositions.includes(p) && p !== heroPosition
+  );
 
   // ── Advance to next non-folded actor ──
   function advanceActor(folded: string[]) {
@@ -239,6 +250,7 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
         effective_stack_cents: stackStr ? Math.round(parseFloat(stackStr) * 100) : undefined,
         pot_result_cents: resultStr ? Math.round(rawResult * 100) : undefined,
         notes: notes || undefined,
+        villain_cards: Object.keys(villainCards).length > 0 ? villainCards : undefined,
         poker_actions_attributes: actions.map((a, i) => ({
           street: a.street,
           actor: a.actor,
@@ -264,6 +276,7 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     // Setup
     card1, setCard1,
     card2, setCard2,
+    villainCards, setVillainCard,
     heroPosition, setHeroPosition,
     stackStr, setStackStr,
     startingPotStr, setStartingPotStr,
@@ -288,6 +301,7 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     isFacingBet,
     availableActions,
     canAdvanceStreet,
+    showdownPositions,
 
     // Board cards
     boardCards,
@@ -303,6 +317,7 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     startHand,
     addPendingAction,
     skipAction,
+    advanceStreet,
     requestAdvanceStreet,
     confirmBoardInput,
     handleAmountStr,
