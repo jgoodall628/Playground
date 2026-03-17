@@ -5,11 +5,17 @@ import {
 } from 'react-native';
 import { createHand } from './api';
 
-const POSITIONS = ['BTN', 'CO', 'MP', 'UTG', 'SB', 'BB'];
+const POSITIONS = ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+const PREFLOP_ORDER  = ['UTG', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+const POSTFLOP_ORDER = ['SB', 'BB', 'UTG', 'LJ', 'HJ', 'CO', 'BTN'];
 const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 const SUITS = ['♠', '♥', '♦', '♣'];
 const SUIT_CHARS = ['s', 'h', 'd', 'c'];
 const STREETS = ['preflop', 'flop', 'turn', 'river'] as const;
+
+// 1bb = 100 internal units (same integer arithmetic as before, just denominated in BBs)
+const BIG_BLIND = 100;
+const SMALL_BLIND = 50;
 
 type Street = typeof STREETS[number];
 type WizardStep = 'setup' | 'actions' | 'result';
@@ -28,8 +34,12 @@ interface Props {
   onCancel: () => void;
 }
 
-function fmt(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
+function fmt(units: number) {
+  return `${(units / 100).toFixed(1)}bb`;
+}
+
+function actionOrderFor(street: Street): string[] {
+  return street === 'preflop' ? PREFLOP_ORDER : POSTFLOP_ORDER;
 }
 
 // ─── CardPicker ────────────────────────────────────────────────────────────────
@@ -48,10 +58,6 @@ function CardPicker({ card1, card2, onChange }: {
     const suitIdx = SUIT_CHARS.indexOf(card.slice(-1));
     const suit = SUITS[suitIdx] ?? '';
     return { rank, suit, color: suitColor(suit) };
-  };
-
-  const selectRank = (rank: string) => {
-    setPendingRank(rank);
   };
 
   const selectSuit = (suitIdx: number) => {
@@ -77,8 +83,6 @@ function CardPicker({ card1, card2, onChange }: {
   return (
     <View style={cpStyles.container}>
       <Text style={cpStyles.label}>Hero Cards</Text>
-
-      {/* Card display slots */}
       <View style={cpStyles.slots}>
         <TouchableOpacity
           style={[cpStyles.slot, activeSlot === 0 && cpStyles.slotActive]}
@@ -90,7 +94,6 @@ function CardPicker({ card1, card2, onChange }: {
             <Text style={cpStyles.slotEmpty}>{activeSlot === 0 ? '?' : '–'}</Text>
           )}
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[cpStyles.slot, activeSlot === 1 && cpStyles.slotActive]}
           onPress={() => activateSlot(1)}
@@ -102,21 +105,17 @@ function CardPicker({ card1, card2, onChange }: {
           )}
         </TouchableOpacity>
       </View>
-
-      {/* Rank grid */}
       <View style={cpStyles.rankGrid}>
         {RANKS.map((r) => (
           <TouchableOpacity
             key={r}
             style={[cpStyles.rankBtn, pendingRank === r && cpStyles.rankBtnActive]}
-            onPress={() => selectRank(r)}
+            onPress={() => setPendingRank(r)}
           >
             <Text style={[cpStyles.rankText, pendingRank === r && cpStyles.rankTextActive]}>{r}</Text>
           </TouchableOpacity>
         ))}
       </View>
-
-      {/* Suit buttons (shown always, greyed out until rank picked) */}
       <View style={cpStyles.suitRow}>
         {SUITS.map((s, i) => (
           <TouchableOpacity
@@ -176,7 +175,8 @@ function BetSizingButtons({ potCents, remainingStackCents, lastBetCents, selecte
   selected: number | null;
   onSelect: (cents: number) => void;
 }) {
-  const minBet = lastBetCents > 0 ? lastBetCents * 2 : Math.round(potCents * 0.1);
+  // Min bet: 1bb (BIG_BLIND units) if no current bet, otherwise 2x the current bet
+  const minBet = lastBetCents > 0 ? lastBetCents * 2 : BIG_BLIND;
   const sizings = [
     { label: 'Min', cents: minBet },
     { label: '33%', cents: Math.round(potCents * 0.33) },
@@ -264,14 +264,13 @@ const STREET_COLORS: Record<Street, string> = {
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
-  // Wizard step
   const [step, setStep] = useState<WizardStep>('setup');
 
   // Setup
   const [card1, setCard1] = useState('');
   const [card2, setCard2] = useState('');
   const [heroPosition, setHeroPosition] = useState('');
-  const [stackStr, setStackStr] = useState('');
+  const [stackStr, setStackStr] = useState('100');
   const [startingPotStr, setStartingPotStr] = useState('');
 
   // Actions
@@ -280,8 +279,8 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
   const [heroInvestedCents, setHeroInvestedCents] = useState(0);
   const [lastBetCents, setLastBetCents] = useState(0);
   const [actions, setActions] = useState<ActionInput[]>([]);
-  const [pendingActor, setPendingActor] = useState<'hero' | 'villain'>('hero');
-  const [pendingVillainPos, setPendingVillainPos] = useState('');
+  const [currentActorIdx, setCurrentActorIdx] = useState(0);
+  const [foldedPositions, setFoldedPositions] = useState<string[]>([]);
   const [pendingActionType, setPendingActionType] = useState('');
   const [pendingAmountCents, setPendingAmountCents] = useState<number | null>(null);
   const [pendingAmountStr, setPendingAmountStr] = useState('');
@@ -298,11 +297,41 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
   const remainingStack = Math.max(0, stackCents - heroInvestedCents);
   const needsAmount = ['bet', 'raise', 'call'].includes(pendingActionType);
 
+  // Derived actor info
+  const actorOrder = actionOrderFor(currentStreet);
+  const currentActor = actorOrder[currentActorIdx] ?? '';
+  const isHeroTurn = currentActor === heroPosition;
+
+  // Skip label: BB preflop with no raise gets a "check" option
+  const bbPreflopOption =
+    currentStreet === 'preflop' &&
+    currentActor === 'BB' &&
+    lastBetCents <= BIG_BLIND;
+  const skipAutoAction = (lastBetCents === 0 || bbPreflopOption) ? 'check' : 'fold';
+
   // ── Setup → Actions ──
   const startHand = () => {
-    const initPot = startingPotStr ? Math.round(parseFloat(startingPotStr) * 100) : 0;
+    const initPot = startingPotStr
+      ? Math.round(parseFloat(startingPotStr) * 100)
+      : BIG_BLIND + SMALL_BLIND; // default 1.5bb
     setPotCents(initPot);
+    // Preflop: BB has already bet 1bb
+    setLastBetCents(BIG_BLIND);
+    setCurrentActorIdx(0);
+    setFoldedPositions([]);
     setStep('actions');
+  };
+
+  // ── Advance to next non-folded actor ──
+  const advanceActor = (folded: string[]) => {
+    const order = actionOrderFor(currentStreet);
+    let next = (currentActorIdx + 1) % order.length;
+    let tries = 0;
+    while (folded.includes(order[next]) && tries < order.length) {
+      next = (next + 1) % order.length;
+      tries++;
+    }
+    setCurrentActorIdx(next);
   };
 
   // ── Add pending action ──
@@ -319,31 +348,54 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
     const amountCents = needsAmount ? pendingAmountCents! : null;
     const amountStr = amountCents !== null ? (amountCents / 100).toFixed(2) : '';
 
-    setActions((prev) => [
-      ...prev,
-      {
-        street: currentStreet,
-        actor: pendingActor,
-        villain_position: pendingActor === 'villain' ? pendingVillainPos : '',
-        action_type: pendingActionType,
-        amount: amountStr,
-      },
-    ]);
+    const newAction: ActionInput = {
+      street: currentStreet,
+      actor: isHeroTurn ? 'hero' : 'villain',
+      villain_position: isHeroTurn ? '' : currentActor,
+      action_type: pendingActionType,
+      amount: amountStr,
+    };
+
+    setActions((prev) => [...prev, newAction]);
+
+    const newFolded = pendingActionType === 'fold'
+      ? [...foldedPositions, currentActor]
+      : foldedPositions;
+    if (pendingActionType === 'fold') setFoldedPositions(newFolded);
 
     if (amountCents !== null) {
       setPotCents((p) => p + amountCents);
-      if (pendingActor === 'hero') {
-        setHeroInvestedCents((h) => h + amountCents);
-      }
-      if (['bet', 'raise'].includes(pendingActionType)) {
-        setLastBetCents(amountCents);
-      }
+      if (isHeroTurn) setHeroInvestedCents((h) => h + amountCents);
+      if (['bet', 'raise'].includes(pendingActionType)) setLastBetCents(amountCents);
     }
 
-    // Reset pending (keep actor + villain pos for convenience)
     setPendingActionType('');
     setPendingAmountCents(null);
     setPendingAmountStr('');
+    advanceActor(newFolded);
+  };
+
+  // ── Skip action (auto fold or check) ──
+  const skipAction = () => {
+    const newAction: ActionInput = {
+      street: currentStreet,
+      actor: isHeroTurn ? 'hero' : 'villain',
+      villain_position: isHeroTurn ? '' : currentActor,
+      action_type: skipAutoAction,
+      amount: '',
+    };
+
+    setActions((prev) => [...prev, newAction]);
+
+    const newFolded = skipAutoAction === 'fold'
+      ? [...foldedPositions, currentActor]
+      : foldedPositions;
+    if (skipAutoAction === 'fold') setFoldedPositions(newFolded);
+
+    setPendingActionType('');
+    setPendingAmountCents(null);
+    setPendingAmountStr('');
+    advanceActor(newFolded);
   };
 
   // ── Advance street ──
@@ -354,6 +406,7 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
       return;
     }
     setCurrentStreet(STREETS[idx + 1]);
+    setCurrentActorIdx(0);
     setPendingActionType('');
     setPendingAmountCents(null);
     setPendingAmountStr('');
@@ -433,21 +486,21 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
         <Text style={styles.label}>Hero Position</Text>
         <Chips options={POSITIONS} value={heroPosition} onChange={setHeroPosition} />
 
-        <Text style={styles.label}>Effective Stack ($)</Text>
+        <Text style={styles.label}>Effective Stack (bb)</Text>
         <TextInput
           style={styles.input}
           value={stackStr}
           onChangeText={setStackStr}
-          placeholder="200"
+          placeholder="100"
           keyboardType="decimal-pad"
         />
 
-        <Text style={styles.label}>Starting Pot ($) — optional, for bet sizing</Text>
+        <Text style={styles.label}>Starting Pot (bb) — optional</Text>
         <TextInput
           style={styles.input}
           value={startingPotStr}
           onChangeText={setStartingPotStr}
-          placeholder="3 (e.g. blinds)"
+          placeholder="1.5 (default: SB+BB)"
           keyboardType="decimal-pad"
         />
 
@@ -477,7 +530,7 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
           <Text style={styles.streetLabel}>{currentStreet.toUpperCase()}</Text>
           {editingPot ? (
             <View style={styles.potEditRow}>
-              <Text style={styles.potHeaderText}>Pot: $</Text>
+              <Text style={styles.potHeaderText}>Pot: </Text>
               <TextInput
                 style={styles.potInput}
                 value={potEditStr}
@@ -487,6 +540,7 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
                 keyboardType="decimal-pad"
                 autoFocus
               />
+              <Text style={styles.potHeaderText}>bb</Text>
             </View>
           ) : (
             <TouchableOpacity onPress={startPotEdit}>
@@ -495,28 +549,39 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
           )}
         </View>
 
-        {/* Actor toggle */}
-        <View style={styles.actorRow}>
-          {(['hero', 'villain'] as const).map((a) => (
-            <TouchableOpacity
-              key={a}
-              style={[styles.actorBtn, pendingActor === a && styles.actorBtnActive]}
-              onPress={() => setPendingActor(a)}
-            >
-              <Text style={[styles.actorText, pendingActor === a && styles.actorTextActive]}>
-                {a.charAt(0).toUpperCase() + a.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Position order indicator */}
+        <View style={styles.positionRow}>
+          {actorOrder.map((pos) => {
+            const isCurrent = pos === currentActor;
+            const isFolded = foldedPositions.includes(pos);
+            const isHero = pos === heroPosition;
+            return (
+              <View
+                key={pos}
+                style={[
+                  styles.posChip,
+                  isCurrent && { backgroundColor: streetColor, borderColor: streetColor },
+                  isFolded && styles.posChipFolded,
+                ]}
+              >
+                <Text style={[
+                  styles.posChipText,
+                  isCurrent && styles.posChipTextActive,
+                  isFolded && styles.posChipTextFolded,
+                ]}>
+                  {pos}{isHero ? '*' : ''}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
-        {/* Villain position */}
-        {pendingActor === 'villain' && (
-          <>
-            <Text style={styles.label}>Villain Position</Text>
-            <Chips options={POSITIONS} value={pendingVillainPos} onChange={setPendingVillainPos} />
-          </>
-        )}
+        {/* Current actor banner */}
+        <View style={[styles.actorBanner, isHeroTurn && { borderColor: streetColor }]}>
+          <Text style={[styles.actorBannerText, isHeroTurn && { color: streetColor }]}>
+            {isHeroTurn ? `You (${currentActor}) to act` : `${currentActor} to act`}
+          </Text>
+        </View>
 
         {/* Action type */}
         <Text style={styles.label}>Action</Text>
@@ -540,19 +605,30 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
               style={styles.input}
               value={pendingAmountStr}
               onChangeText={handleAmountStr}
-              placeholder="or enter amount"
+              placeholder="or enter amount (bb)"
               keyboardType="decimal-pad"
             />
           </View>
         )}
 
-        <TouchableOpacity
-          style={[styles.primaryBtn, !pendingActionType && styles.primaryBtnDisabled]}
-          onPress={addPendingAction}
-          disabled={!pendingActionType}
-        >
-          <Text style={styles.primaryBtnText}>+ Add Action</Text>
-        </TouchableOpacity>
+        {/* Action buttons row */}
+        <View style={styles.actionBtnRow}>
+          <TouchableOpacity
+            style={[styles.skipBtn]}
+            onPress={skipAction}
+          >
+            <Text style={styles.skipBtnText}>
+              Skip ({skipAutoAction})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.primaryBtn, styles.addActionBtn, !pendingActionType && styles.primaryBtnDisabled]}
+            onPress={addPendingAction}
+            disabled={!pendingActionType}
+          >
+            <Text style={styles.primaryBtnText}>+ Add Action</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Actions log */}
         {actions.length > 0 && (
@@ -564,8 +640,8 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
                 <View key={i} style={styles.logRow}>
                   <View style={[styles.logStreetDot, { backgroundColor: streetColor2 }]} />
                   <Text style={styles.logText}>
-                    <Text style={styles.logActor}>{a.actor === 'hero' ? 'Hero' : `Villain (${a.villain_position || '?'})`}</Text>
-                    {' '}{a.action_type}{a.amount ? ` $${parseFloat(a.amount).toFixed(2)}` : ''}
+                    <Text style={styles.logActor}>{a.actor === 'hero' ? `Hero (${heroPosition})` : a.villain_position || '?'}</Text>
+                    {' '}{a.action_type}{a.amount ? ` ${parseFloat(a.amount).toFixed(1)}bb` : ''}
                   </Text>
                   {i === actions.length - 1 && (
                     <TouchableOpacity onPress={() => setActions((prev) => prev.slice(0, -1))}>
@@ -600,7 +676,6 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Hand Result</Text>
 
-      {/* Summary */}
       <View style={styles.summaryCard}>
         <Text style={styles.summaryTitle}>Summary</Text>
         {(card1 || card2) && (
@@ -613,16 +688,18 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
         </Text>
         {stackStr && (
           <Text style={styles.summaryRow}>
-            Stack: <Text style={styles.summaryVal}>${stackStr}</Text>
+            Stack: <Text style={styles.summaryVal}>{stackStr}bb</Text>
           </Text>
         )}
         <Text style={styles.summaryRow}>
           Actions logged: <Text style={styles.summaryVal}>{actions.length}</Text>
         </Text>
+        <Text style={styles.summaryRow}>
+          Final pot: <Text style={styles.summaryVal}>{fmt(potCents)}</Text>
+        </Text>
       </View>
 
-      {/* Result */}
-      <Text style={styles.label}>Result</Text>
+      <Text style={styles.label}>Result (bb)</Text>
       <View style={styles.resultRow}>
         <TouchableOpacity
           style={[styles.resultToggle, resultPositive && styles.resultToggleWon]}
@@ -708,16 +785,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 2, color: '#fff', fontSize: 14, minWidth: 60,
   },
 
-  // Actor toggle
-  actorRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  actorBtn: {
-    flex: 1, paddingVertical: 12, borderRadius: 10,
+  // Position order row
+  positionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  posChip: {
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
     borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff',
-    alignItems: 'center',
   },
-  actorBtnActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
-  actorText: { fontSize: 16, fontWeight: '600', color: '#374151' },
-  actorTextActive: { color: '#fff' },
+  posChipFolded: { backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' },
+  posChipText: { fontSize: 12, fontWeight: '600', color: '#374151' },
+  posChipTextActive: { color: '#fff' },
+  posChipTextFolded: { color: '#9ca3af', textDecorationLine: 'line-through' },
+
+  // Current actor banner
+  actorBanner: {
+    borderRadius: 10, borderWidth: 2, borderColor: '#d1d5db',
+    paddingVertical: 10, paddingHorizontal: 14, marginBottom: 16,
+    backgroundColor: '#fff', alignItems: 'center',
+  },
+  actorBannerText: { fontSize: 16, fontWeight: '700', color: '#374151' },
+
+  // Action buttons row
+  actionBtnRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+  skipBtn: {
+    flex: 1, padding: 14, borderRadius: 10,
+    borderWidth: 1, borderColor: '#6b7280', backgroundColor: '#f9fafb',
+    alignItems: 'center', marginBottom: 12,
+  },
+  skipBtnText: { color: '#374151', fontWeight: '600', fontSize: 14 },
+  addActionBtn: { marginBottom: 12 },
 
   // Sizing block
   sizingBlock: { marginBottom: 4 },
