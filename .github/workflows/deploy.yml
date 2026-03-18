@@ -82,4 +82,6 @@ jobs:
 
       - name: Publish OTA update
         working-directory: frontend
-        run: eas update --branch preview --message "${{ github.event.head_commit.message }}" --environment preview --non-interactive
+        run: eas update --branch preview --message "${MESSAGE:-Manual deploy}" --environment preview --non-interactive
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
