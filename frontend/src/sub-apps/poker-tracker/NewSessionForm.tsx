@@ -3,23 +3,28 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator,
 } from 'react-native';
-import { createSession } from './api';
+import { createSession, updateSession, PokerSession } from './api';
 import { parseDuration } from './utils';
 
 interface Props {
+  session?: PokerSession;
   onSaved: () => void;
   onCancel: () => void;
 }
 
-export default function NewSessionForm({ onSaved, onCancel }: Props) {
+export default function NewSessionForm({ session, onSaved, onCancel }: Props) {
   const today = new Date().toISOString().split('T')[0];
-  const [date, setDate] = useState(today);
-  const [buyIn, setBuyIn] = useState('');
-  const [cashOut, setCashOut] = useState('');
-  const [location, setLocation] = useState('');
-  const [gameType, setGameType] = useState('');
-  const [stakes, setStakes] = useState('');
-  const [duration, setDuration] = useState('');
+  const [date, setDate] = useState(session?.date ?? today);
+  const [buyIn, setBuyIn] = useState(session ? String(session.buy_in_cents / 100) : '');
+  const [cashOut, setCashOut] = useState(session ? String(session.cash_out_cents / 100) : '');
+  const [location, setLocation] = useState(session?.location ?? '');
+  const [gameType, setGameType] = useState(session?.game_type ?? '');
+  const [stakes, setStakes] = useState(session?.stakes ?? '');
+  const [duration, setDuration] = useState(
+    session?.duration_minutes != null
+      ? `${Math.floor(session.duration_minutes / 60)}h ${session.duration_minutes % 60}m`
+      : ''
+  );
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
@@ -35,7 +40,7 @@ export default function NewSessionForm({ onSaved, onCancel }: Props) {
     }
     setSaving(true);
     try {
-      await createSession({
+      const data = {
         date,
         buy_in_cents: buyInCents,
         cash_out_cents: cashOutCents,
@@ -43,7 +48,12 @@ export default function NewSessionForm({ onSaved, onCancel }: Props) {
         game_type: gameType || undefined,
         stakes: stakes || undefined,
         duration_minutes: parseDuration(duration),
-      });
+      };
+      if (session) {
+        await updateSession(session.id, data);
+      } else {
+        await createSession(data);
+      }
       onSaved();
     } catch (e) {
       Alert.alert('Error', (e as Error).message);
@@ -54,7 +64,7 @@ export default function NewSessionForm({ onSaved, onCancel }: Props) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>New Session</Text>
+      <Text style={styles.title}>{session ? 'Edit Session' : 'New Session'}</Text>
 
       <Text style={styles.label}>Date *</Text>
       <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" />
