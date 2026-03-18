@@ -389,11 +389,6 @@ describe('Scenario 3: 3-way hand to river showdown with villain cards', () => {
       h.result.current.setVillainCard('BB', 'Ah Th');
     });
 
-    act(() => {
-      h.result.current.setResultStr('50');
-      h.result.current.setResultPositive(true);
-    });
-
     await act(async () => { await h.result.current.submit(); });
 
     const payload = mockCreateHand.mock.calls[0][1];
@@ -574,18 +569,19 @@ describe('Scenario 6: Complete hand through all streets — API serialization', 
     });
 
     act(() => {
-      h.result.current.setResultStr('80');
-      h.result.current.setResultPositive(true);
       h.result.current.setNotes('Flopped a set, value-bet all streets');
     });
 
     await act(async () => { await h.result.current.submit(); });
 
+    // Hero invested: 3bb call preflop (300) + 5bb bet flop (500) + 10bb bet turn (1000) + 20bb bet river (2000) = 3800
+    // Pot: 150 + 300 + 300 + 300 + 500 + 500 + 1000 + 1000 + 2000 + 2000 = 8050
+    // Won (default) = 8050 - 3800 = 4250
     expect(mockCreateHand).toHaveBeenCalledWith(SESSION_ID, expect.objectContaining({
       hero_cards: 'Qh Qs',
       hero_position: 'SB',
       effective_stack_cents: 10000,
-      pot_result_cents: 8000,
+      pot_result_cents: 4250,
       notes: 'Flopped a set, value-bet all streets',
       villain_cards: { BB: 'Jc Jh', UTG: 'Ah Kh' },
     }));
@@ -702,7 +698,6 @@ describe('Villain hole cards', () => {
   it('submit omits villain_cards when none have been set', async () => {
     mockCreateHand.mockResolvedValue({});
     const h = startActions('BTN');
-    act(() => { h.result.current.setResultStr('10'); });
     await act(async () => { await h.result.current.submit(); });
 
     const payload = mockCreateHand.mock.calls[0][1];
@@ -714,7 +709,6 @@ describe('Villain hole cards', () => {
     const h = startActions('BTN');
     act(() => {
       h.result.current.setVillainCard('BB', 'As Kh');
-      h.result.current.setResultStr('10');
     });
     await act(async () => { await h.result.current.submit(); });
 

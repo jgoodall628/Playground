@@ -427,7 +427,14 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
         {/* Action type */}
         <Text style={styles.label}>Action</Text>
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <Chips options={form.availableActions} value={form.pendingActionType} onChange={(v) => form.setPendingActionType(v as any)} />
+        <Chips options={form.availableActions} value={form.pendingActionType} onChange={(v) => {
+          const action = v as any;
+          if (action === 'fold' || action === 'call' || action === 'check') {
+            form.autoSubmitAction(action);
+          } else {
+            form.setPendingActionType(action);
+          }
+        }} />
 
         {/* Bet sizing */}
         {form.needsAmount && (
@@ -437,7 +444,7 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
               remainingStackCents={form.remainingStack}
               lastBetCents={form.lastBetCents}
               selected={form.pendingAmountCents}
-              onSelect={form.handleSizingSelect}
+              onSelect={form.autoSubmitSizing}
             />
             <TextInput style={styles.input} value={form.pendingAmountStr} onChangeText={form.handleAmountStr} placeholder="or enter amount (bb)" keyboardType="decimal-pad" />
           </View>
@@ -504,6 +511,15 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
   // ─────────────────────────────────────────────────────────────────────────────
   // STEP: RESULT
   // ─────────────────────────────────────────────────────────────────────────────
+  const resultAutoDetected = form.heroFolded || form.allVillainsFolded;
+  const resultLabel = form.heroFolded
+    ? 'You folded — lost'
+    : form.allVillainsFolded
+      ? 'All opponents folded — won'
+      : `Result: ${form.resultType}`;
+  const resultAmountBb = (form.computedResultCents / 100).toFixed(1);
+  const resultIsPositive = form.computedResultCents >= 0;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Hand Result</Text>
@@ -517,24 +533,71 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
         {form.stackStr && <Text style={styles.summaryRow}>Stack: <Text style={styles.summaryVal}>{form.stackStr}bb</Text></Text>}
         <Text style={styles.summaryRow}>Actions logged: <Text style={styles.summaryVal}>{form.actions.length}</Text></Text>
         <Text style={styles.summaryRow}>Final pot: <Text style={styles.summaryVal}>{fmt(form.potCents)}</Text></Text>
+        <Text style={styles.summaryRow}>Hero invested: <Text style={styles.summaryVal}>{fmt(form.heroInvestedCents)}</Text></Text>
         {form.boardCards.flop.length > 0 && (
           <Text style={styles.summaryRow}>Board: <Text style={styles.summaryVal}>{[...form.boardCards.flop, ...form.boardCards.turn, ...form.boardCards.river].join(' ')}</Text></Text>
         )}
       </View>
 
-      <Text style={styles.label}>Result (bb)</Text>
-      <View style={styles.resultRow}>
-        <TouchableOpacity style={[styles.resultToggle, form.resultPositive && styles.resultToggleWon]} onPress={() => form.setResultPositive(true)}>
-          <Text style={[styles.resultToggleText, form.resultPositive && styles.resultToggleTextActive]}>Won</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.resultToggle, !form.resultPositive && styles.resultToggleLost]} onPress={() => form.setResultPositive(false)}>
-          <Text style={[styles.resultToggleText, !form.resultPositive && styles.resultToggleTextActive]}>Lost</Text>
-        </TouchableOpacity>
-        <TextInput style={[styles.input, styles.resultInput]} value={form.resultStr} onChangeText={form.setResultStr} placeholder="50" keyboardType="decimal-pad" />
-      </View>
+      <Text style={styles.label}>Result</Text>
+      {resultAutoDetected ? (
+        <View style={styles.resultAutoCard}>
+          <Text style={styles.resultAutoLabel}>{resultLabel}</Text>
+          <Text style={[styles.resultAutoAmount, resultIsPositive ? styles.resultWonAmount : styles.resultLostAmount]}>
+            {resultIsPositive ? '+' : ''}{resultAmountBb}bb
+          </Text>
+        </View>
+      ) : (
+        <>
+          <View style={styles.resultRow}>
+            <TouchableOpacity
+              style={[styles.resultToggle, form.resultType === 'won' && styles.resultToggleWon]}
+              onPress={() => form.setResultType('won')}
+            >
+              <Text style={[styles.resultToggleText, form.resultType === 'won' && styles.resultToggleTextActive]}>Won</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.resultToggle, form.resultType === 'lost' && styles.resultToggleLost]}
+              onPress={() => form.setResultType('lost')}
+            >
+              <Text style={[styles.resultToggleText, form.resultType === 'lost' && styles.resultToggleTextActive]}>Lost</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.resultToggle, form.resultType === 'chopped' && styles.resultToggleChopped]}
+              onPress={() => form.setResultType('chopped')}
+            >
+              <Text style={[styles.resultToggleText, form.resultType === 'chopped' && styles.resultToggleTextActive]}>Chopped</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.resultAutoCard}>
+            <Text style={styles.resultAutoLabel}>{resultLabel}</Text>
+            <Text style={[styles.resultAutoAmount, resultIsPositive ? styles.resultWonAmount : styles.resultLostAmount]}>
+              {resultIsPositive ? '+' : ''}{resultAmountBb}bb
+            </Text>
+          </View>
+        </>
+      )}
 
       <Text style={styles.label}>Notes</Text>
       <TextInput style={[styles.input, styles.multiline]} value={form.notes} onChangeText={form.setNotes} multiline numberOfLines={3} placeholder="Any reads, mistakes, or interesting spots..." />
+
+      {/* Showdown villain cards */}
+      {form.showdownPositions.length > 0 && !form.heroFolded && (
+        <View style={{ marginBottom: 12 }}>
+          <Text style={styles.label}>Villain Cards (optional)</Text>
+          {form.showdownPositions.map(pos => (
+            <View key={pos} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ width: 40, fontSize: 13, fontWeight: '600', color: '#374151' }}>{pos}</Text>
+              <TextInput
+                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                value={form.villainCards[pos] || ''}
+                onChangeText={(v) => form.setVillainCard(pos, v)}
+                placeholder="e.g. Ah Kd"
+              />
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={styles.footerRow}>
         <TouchableOpacity style={styles.secondaryBtn} onPress={() => form.setStep('actions')}>
@@ -611,7 +674,12 @@ const styles = StyleSheet.create({
   resultToggle: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#d1d5db', backgroundColor: '#fff' },
   resultToggleWon: { backgroundColor: '#dcfce7', borderColor: '#16a34a' },
   resultToggleLost: { backgroundColor: '#fee2e2', borderColor: '#dc2626' },
+  resultToggleChopped: { backgroundColor: '#fef3c7', borderColor: '#f59e0b' },
   resultToggleText: { fontSize: 14, fontWeight: '600', color: '#374151' },
   resultToggleTextActive: { color: '#111827' },
-  resultInput: { flex: 1, marginBottom: 0 },
+  resultAutoCard: { backgroundColor: '#fff', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 16, alignItems: 'center' },
+  resultAutoLabel: { fontSize: 13, fontWeight: '600', color: '#6b7280', marginBottom: 4 },
+  resultAutoAmount: { fontSize: 24, fontWeight: '800' },
+  resultWonAmount: { color: '#16a34a' },
+  resultLostAmount: { color: '#dc2626' },
 });
