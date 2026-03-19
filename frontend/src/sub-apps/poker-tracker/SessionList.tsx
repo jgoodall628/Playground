@@ -7,12 +7,14 @@ import { getSessions, deleteSession, PokerSession } from './api';
 import { formatMoney, profitColor, formatDuration } from './utils';
 import NewSessionForm from './NewSessionForm';
 import SessionDetail from './SessionDetail';
+import SwipeableRow from './SwipeableRow';
 
 export default function SessionList() {
   const [sessions, setSessions] = useState<PokerSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [editSession, setEditSession] = useState<PokerSession | null>(null);
 
   const load = async () => {
     try {
@@ -36,6 +38,16 @@ export default function SessionList() {
     );
   }
 
+  if (editSession) {
+    return (
+      <NewSessionForm
+        session={editSession}
+        onSaved={() => { setEditSession(null); load(); }}
+        onCancel={() => setEditSession(null)}
+      />
+    );
+  }
+
   if (selectedId != null) {
     return (
       <SessionDetail
@@ -49,6 +61,19 @@ export default function SessionList() {
     return <ActivityIndicator style={styles.center} size="large" color="#7C3AED" />;
   }
 
+  const handleDelete = (s: PokerSession) => {
+    Alert.alert('Delete Session', 'Delete this session and all its hands?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          await deleteSession(s.id);
+          load();
+        },
+      },
+    ]);
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.list}>
@@ -56,35 +81,30 @@ export default function SessionList() {
           <Text style={styles.empty}>No sessions yet. Tap + to add one.</Text>
         )}
         {sessions.map((s) => (
-          <TouchableOpacity
+          <SwipeableRow
             key={s.id}
-            style={styles.card}
-            onPress={() => setSelectedId(s.id)}
-            onLongPress={() =>
-              Alert.alert('Delete Session', 'Delete this session and all its hands?', [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete', style: 'destructive',
-                  onPress: async () => {
-                    await deleteSession(s.id);
-                    load();
-                  },
-                },
-              ])
-            }
+            actions={[
+              { label: 'Edit', color: '#7C3AED', onPress: () => setEditSession(s) },
+              { label: 'Delete', color: '#ef4444', onPress: () => handleDelete(s) },
+            ]}
           >
-            <View style={styles.cardRow}>
-              <Text style={styles.cardDate}>{s.date}</Text>
-              <Text style={[styles.cardProfit, { color: profitColor(s.profit_cents) }]}>
-                {formatMoney(s.profit_cents)}
-              </Text>
-            </View>
-            <View style={styles.cardRow}>
-              <Text style={styles.cardMeta}>
-                {[s.stakes, s.location, formatDuration(s.duration_minutes)].filter(Boolean).join(' · ')}
-              </Text>
-            </View>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => setSelectedId(s.id)}
+            >
+              <View style={styles.cardRow}>
+                <Text style={styles.cardDate}>{s.date}</Text>
+                <Text style={[styles.cardProfit, { color: profitColor(s.profit_cents) }]}>
+                  {formatMoney(s.profit_cents)}
+                </Text>
+              </View>
+              <View style={styles.cardRow}>
+                <Text style={styles.cardMeta}>
+                  {[s.stakes, s.location, formatDuration(s.duration_minutes)].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </SwipeableRow>
         ))}
       </ScrollView>
       <TouchableOpacity style={styles.fab} onPress={() => setShowNew(true)}>
@@ -103,11 +123,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
   },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardDate: { fontSize: 16, fontWeight: '600', color: '#111827' },
