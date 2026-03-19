@@ -8,6 +8,7 @@ import {
   POSITIONS, STREETS,
   fmt,
   type Street,
+  type ActionType,
 } from './constants';
 
 const STREET_COLORS_MAP: Record<Street, string> = {
@@ -426,9 +427,8 @@ export default function NewHandForm({ sessionId, onSaved, onCancel }: Props) {
 
         {/* Action type */}
         <Text style={styles.label}>Action</Text>
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <Chips options={form.availableActions} value={form.pendingActionType} onChange={(v) => {
-          const action = v as any;
+          const action = v as ActionType;
           if (action === 'fold' || action === 'call' || action === 'check') {
             form.autoSubmitAction(action);
           } else {
