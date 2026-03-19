@@ -52,8 +52,7 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   const [actedSinceLastBet, setActedSinceLastBet] = useState<string[]>([]);
 
   // ── Result ──
-  const [resultStr, setResultStr] = useState('');
-  const [resultPositive, setResultPositive] = useState(true);
+  const [resultType, setResultType] = useState<'won' | 'lost' | 'chopped'>('won');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -88,6 +87,28 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   const showdownPositions = actorOrder.filter(
     p => !foldedPositions.includes(p) && p !== heroPosition
   );
+
+  // ── Result computation ──
+  const heroFolded = foldedPositions.includes(heroPosition);
+  const allVillainsFolded = foldedPositions.length > 0 &&
+    actorOrder.filter(p => p !== heroPosition).every(p => foldedPositions.includes(p));
+  const remainingPlayerCount = actorOrder.filter(p => !foldedPositions.includes(p)).length;
+
+  let computedResultCents = 0;
+  if (heroFolded) {
+    computedResultCents = -heroInvestedCents;
+  } else if (allVillainsFolded) {
+    computedResultCents = potCents - heroInvestedCents;
+  } else if (resultType === 'won') {
+    computedResultCents = potCents - heroInvestedCents;
+  } else if (resultType === 'lost') {
+    computedResultCents = -heroInvestedCents;
+  } else {
+    // chopped: each remaining player gets equal share of the pot
+    computedResultCents = remainingPlayerCount > 0
+      ? Math.round(potCents / remainingPlayerCount) - heroInvestedCents
+      : 0;
+  }
 
   // ── Advance to next non-folded actor ──
   function advanceActor(folded: string[]) {
@@ -177,6 +198,70 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     resetPending();
   }
 
+  // ── Auto-submit action (fold/call/check submit immediately, bet/raise with amount) ──
+  function autoSubmitAction(actionType: ActionType, amountCents?: number) {
+    let amt: number | null = null;
+    if (actionType === 'call') {
+      amt = lastBetCents;
+    } else if (actionType === 'fold' || actionType === 'check') {
+      amt = null;
+    } else if (amountCents !== undefined) {
+      amt = amountCents;
+    }
+
+    // Compute post-action state for auto-advance/end detection
+    const newFolded = actionType === 'fold'
+      ? [...foldedPositions, currentActor]
+      : foldedPositions;
+    const newActedSinceLastBet = (actionType === 'bet' || actionType === 'raise')
+      ? [currentActor]
+      : [...new Set([...actedSinceLastBet, currentActor])];
+    const newLastBetCents = (actionType === 'bet' || actionType === 'raise') && amt !== null
+      ? amt : lastBetCents;
+
+    // Record the action
+    recordAction(actionType, amt);
+    resetPending();
+
+    // Auto-end: all but 1 player folded
+    const order = actionOrderFor(currentStreet);
+    const newActivePositions = order.filter(p => !newFolded.includes(p));
+    if (newActivePositions.length <= 1) {
+      setStep('result');
+      return;
+    }
+
+    // Compute next actor (mirror advanceActor logic)
+    let nextIdx = (currentActorIdx + 1) % order.length;
+    let tries = 0;
+    while (newFolded.includes(order[nextIdx]) && tries < order.length) {
+      nextIdx = (nextIdx + 1) % order.length;
+      tries++;
+    }
+    const nextActor = order[nextIdx];
+
+    // Auto-advance: all active players have acted since last bet
+    const allActive = newActivePositions.every(p => newActedSinceLastBet.includes(p));
+    const newBbPreflopOption = currentStreet === 'preflop'
+      && nextActor === 'BB'
+      && newLastBetCents <= BIG_BLIND;
+
+    if (allActive && !newBbPreflopOption) {
+      const streetIdx = STREETS.indexOf(currentStreet);
+      if (streetIdx >= STREETS.length - 1) {
+        setStep('result');
+      } else {
+        setBoardInputPending(STREETS[streetIdx + 1]);
+      }
+    }
+  }
+
+  // ── Auto-submit a predetermined bet sizing ──
+  function autoSubmitSizing(cents: number) {
+    if (!pendingActionType || (pendingActionType !== 'bet' && pendingActionType !== 'raise')) return;
+    autoSubmitAction(pendingActionType as ActionType, cents);
+  }
+
   // ── Advance to next street (internal — does not trigger board input) ──
   function advanceStreet(folded: string[] = foldedPositions) {
     const idx = STREETS.indexOf(currentStreet);
@@ -243,12 +328,11 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
   async function submit() {
     setSaving(true);
     try {
-      const rawResult = parseFloat(resultStr) * (resultPositive ? 1 : -1);
       await createHand(sessionId, {
         hero_cards: [card1, card2].filter(Boolean).join(' ') || undefined,
         hero_position: heroPosition || undefined,
         effective_stack_cents: stackStr ? Math.round(parseFloat(stackStr) * 100) : undefined,
-        pot_result_cents: resultStr ? Math.round(rawResult * 100) : undefined,
+        pot_result_cents: computedResultCents,
         notes: notes || undefined,
         villain_cards: Object.keys(villainCards).length > 0 ? villainCards : undefined,
         poker_actions_attributes: actions.map((a, i) => ({
@@ -308,14 +392,20 @@ export function useHandForm(sessionId: number, onSaved: () => void) {
     boardInputPending,
 
     // Result
-    resultStr, setResultStr,
-    resultPositive, setResultPositive,
+    resultType, setResultType,
+    computedResultCents,
+    heroFolded,
+    allVillainsFolded,
+    remainingPlayerCount,
+    heroInvestedCents,
     notes, setNotes,
     saving,
 
     // Handlers
     startHand,
     addPendingAction,
+    autoSubmitAction,
+    autoSubmitSizing,
     skipAction,
     advanceStreet,
     requestAdvanceStreet,
