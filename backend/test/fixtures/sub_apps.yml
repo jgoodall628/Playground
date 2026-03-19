@@ -1,0 +1,24 @@
+hello_world:
+  name: Hello World
+  slug: hello-world
+  description: A simple greeting screen
+  icon: hand-right-outline
+  color: "#4CAF50"
+  enabled: true
+  position: 1
+
+poker_tracker:
+  name: Poker Tracker
+  slug: poker-tracker
+  description: Track poker sessions
+  icon: card-outline
+  color: "#7C3AED"
+  enabled: true
+  position: 2
+
+disabled_app:
+  name: Disabled App
+  slug: disabled-app
+  description: This app is disabled
+  enabled: false
+  position: 99

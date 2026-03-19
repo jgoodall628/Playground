@@ -1,5 +1,19 @@
 {
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$ARGUMENTS\" | grep -q '\"command\".*git commit'; then cd backend && bin/rails test && cd ../frontend && npx jest --passWithNoTests; fi",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
   }
 }
