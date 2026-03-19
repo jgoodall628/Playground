@@ -1,3 +1,6 @@
+# Root (Husky + lint-staged)
+node_modules/
+
 # Frontend
 frontend/node_modules/
 frontend/.expo/

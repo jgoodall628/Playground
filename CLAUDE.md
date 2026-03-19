@@ -94,3 +94,12 @@ mise exec -- npx tsc --noEmit
 # Verify API (no mise needed for curl)
 curl http://localhost:3000/api/v1/sub_apps
 ```
+
+## Pre-commit Testing
+
+Before committing any changes, always run the relevant tests:
+
+- **Backend changes** (`backend/**`): Run `mise exec -- bin/rails test` from the `backend/` directory.
+- **Frontend changes** (`frontend/**`): Run `mise exec -- npx jest --passWithNoTests` from the `frontend/` directory.
+- If changes span both directories, run both test suites.
+- Do not commit if tests fail — fix the issues first.

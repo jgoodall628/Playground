@@ -1,0 +1,14 @@
+{
+  "private": true,
+  "devDependencies": {
+    "husky": "^9",
+    "lint-staged": "^15"
+  },
+  "scripts": {
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "backend/**/*.rb": "bash -c 'cd backend && /opt/rbenv/versions/3.3.6/bin/bundle exec rubocop --autocorrect \"$@\"' --",
+    "frontend/**/*.{ts,tsx}": "bash -c 'cd frontend && npx eslint --fix \"$@\"' --"
+  }
+}
