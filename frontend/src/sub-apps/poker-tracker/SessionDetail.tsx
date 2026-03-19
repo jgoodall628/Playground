@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert,
@@ -20,7 +20,7 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
   const [showNewHand, setShowNewHand] = useState(false);
   const [selectedHandId, setSelectedHandId] = useState<number | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const data = await getSession(sessionId);
       setSession(data);
@@ -29,9 +29,9 @@ export default function SessionDetail({ sessionId, onBack }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   if (showNewHand) {
     return (

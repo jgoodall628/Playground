@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   Animated, PanResponder, LayoutAnimation,
@@ -18,31 +18,32 @@ interface Props {
 const ACTION_WIDTH = 72;
 
 export default function SwipeableRow({ actions, children }: Props) {
-  const translateX = useRef(new Animated.Value(0)).current;
   const openWidth = actions.length * ACTION_WIDTH;
 
-  const panResponder = useRef(
-    PanResponder.create({
+  const { translateX, panHandlers } = useMemo(() => {
+    const tx = new Animated.Value(0);
+    const responder = PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) =>
         Math.abs(g.dx) > 10 && Math.abs(g.dy) < 20,
       onPanResponderMove: (_, g) => {
         if (g.dx < 0) {
-          translateX.setValue(Math.max(g.dx, -openWidth));
+          tx.setValue(Math.max(g.dx, -openWidth));
         } else {
-          translateX.setValue(Math.min(g.dx, 0));
+          tx.setValue(Math.min(g.dx, 0));
         }
       },
       onPanResponderRelease: (_, g) => {
         const shouldOpen = g.dx < -openWidth / 3 || g.vx < -0.5;
-        Animated.spring(translateX, {
+        Animated.spring(tx, {
           toValue: shouldOpen ? -openWidth : 0,
           useNativeDriver: true,
           bounciness: 4,
           speed: 14,
         }).start();
       },
-    }),
-  ).current;
+    });
+    return { translateX: tx, panHandlers: responder.panHandlers };
+  }, [openWidth]);
 
   const close = () => {
     Animated.spring(translateX, {
@@ -72,7 +73,7 @@ export default function SwipeableRow({ actions, children }: Props) {
       </View>
       <Animated.View
         style={[styles.content, { transform: [{ translateX }] }]}
-        {...panResponder.panHandlers}
+        {...panHandlers}
       >
         {children}
       </Animated.View>
