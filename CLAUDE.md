@@ -50,10 +50,10 @@ bundle config build.psych --with-libyaml-dir=$(brew --prefix libyaml)
 
 ## Deployment
 
-- **Backend**: Render (see `render.yaml`). Auto-deploys via GitHub Actions when `backend/` changes.
+- **Backend**: Render (see `render.yaml`). Auto-deploys from GitHub when `backend/` changes (managed by Render).
 - **Frontend**: Expo EAS OTA updates. Auto-publishes via GitHub Actions when `frontend/` changes.
-- CI/CD workflow: `.github/workflows/deploy.yml`.
-- Required secrets: `RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`.
+- CI/CD workflow: `.github/workflows/deploy.yml` (frontend only).
+- Required secrets: `EXPO_TOKEN`.
 
 ## Preview on Device
 
